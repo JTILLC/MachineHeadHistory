@@ -39,7 +39,10 @@
         .section {
             margin-bottom: 30px;
         }
-        .section input, .section select, .section button, .section textarea {
+        .section input,
+        .section select,
+        .section button,
+        .section textarea {
             margin: 5px 0;
             display: block;
         }
@@ -119,185 +122,212 @@
                 </tr>
             </thead>
             <tbody>
-                <!-- Dynamic rows populated by JavaScript -->
+                <!-- Rows will be populated by JavaScript -->
             </tbody>
         </table>
     </div>
 
     <script>
-        // ----- INITIAL DATA LOAD -----
-        let historyLogs = JSON.parse(localStorage.getItem('historyLogs')) || [];
+        // ------------------------------
+        // 1) STATE & INITIAL LOAD
+        // ------------------------------
+        let historyLogs = [];
 
-        // ----- HELPER: NORMALIZE DATE FORMATTING -----
+        // Try to load from localStorage (if any)
+        try {
+            const stored = localStorage.getItem('historyLogs');
+            if (stored) {
+                historyLogs = JSON.parse(stored);
+                if (!Array.isArray(historyLogs)) {
+                    historyLogs = [];
+                }
+            }
+        } catch (err) {
+            console.warn('Could not parse historyLogs from localStorage:', err);
+            historyLogs = [];
+        }
+
+        // ------------------------------
+        // 2) UTILITY FUNCTIONS
+        // ------------------------------
+        function saveToLocalStorage() {
+            localStorage.setItem('historyLogs', JSON.stringify(historyLogs));
+        }
+
+        // Normalize dates from MM/DD/YY to YYYY-MM-DD
         function normalizeDate(dateStr) {
             if (!dateStr) return '';
-            if (/^\d{1,2}\/\d{1,2}\/\d{2}$/.test(dateStr)) {
-                const [month, day, year] = dateStr.split('/');
-                const fullYear = `20${year}`;
-                return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            // Detect formats like "1/5/21" or "01/05/21"
+            const parts = dateStr.split('/');
+            if (parts.length === 3 && parts[2].length === 2) {
+                const [m, d, yy] = parts;
+                const mm = m.padStart(2, '0');
+                const dd = d.padStart(2, '0');
+                const fullYear = '20' + yy;
+                return `${fullYear}-${mm}-${dd}`;
             }
+            // Otherwise assume already YYYY-MM-DD
             return dateStr;
         }
 
-        // ----- MAP JSON FIELDS TO INTERNAL FIELDS -----
-        function mapJsonToLog(jsonLog) {
+        // Map a JSON‐style object to our internal log‐object shape
+        function mapJsonToLog(obj) {
             return {
-                line: jsonLog.Line || '',
-                date: normalizeDate(jsonLog.Date) || '',
-                head: jsonLog.Head || '',
-                offlineStatus: jsonLog['Offline Status'] || '',
-                issue: jsonLog.Issue || '',
-                repaired: jsonLog.Repaired || '',
-                notes: jsonLog.Notes || ''
+                line: obj.Line || '',
+                date: normalizeDate(obj.Date) || '',
+                head: obj.Head || '',
+                offlineStatus: obj['Offline Status'] || '',
+                issue: obj.Issue || '',
+                repaired: obj.Repaired || '',
+                notes: obj.Notes || ''
             };
         }
 
-        function mapLogToJson(log) {
+        // Map internal object back to JSON‐style for export
+        function mapLogToJson(obj) {
             return {
-                Line: log.line || '',
-                Date: log.date || '',
-                Head: log.head || '',
-                'Offline Status': log.offlineStatus || '',
-                Issue: log.issue || '',
-                Repaired: log.repaired || '',
-                Notes: log.notes || ''
+                Line: obj.line || '',
+                Date: obj.date || '',
+                Head: obj.head || '',
+                'Offline Status': obj.offlineStatus || '',
+                Issue: obj.issue || '',
+                Repaired: obj.repaired || '',
+                Notes: obj.notes || ''
             };
         }
 
-        // ----- RENDER TABLE WITH CURRENT FILTERS -----
+        // ------------------------------
+        // 3) RENDER / FILTER LOGICS
+        // ------------------------------
         function renderTable() {
             const tbody = document.querySelector('#head-history-table tbody');
-            tbody.innerHTML = ''; // Clear existing rows
+            tbody.innerHTML = '';
 
-            const selectedLine = document.querySelector('#filter-line').value;
-            const selectedHead = document.querySelector('#filter-head').value;
-            const selectedIssue = document.querySelector('#filter-issue').value;
+            const selLine = document.querySelector('#filter-line').value;
+            const selHead = document.querySelector('#filter-head').value;
+            const selIssue = document.querySelector('#filter-issue').value;
 
-            historyLogs.forEach((log, index) => {
-                // Skip rows that do not match the current filter
-                if (selectedLine && log.line !== selectedLine) return;
-                if (selectedHead && log.head !== selectedHead) return;
-                if (selectedIssue && log.issue !== selectedIssue) return;
+            historyLogs.forEach((log, idx) => {
+                // Skip if not matching current filters
+                if (selLine && log.line !== selLine) return;
+                if (selHead && log.head !== selHead) return;
+                if (selIssue && log.issue !== selIssue) return;
 
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${log.line || ''}</td>
-                    <td>${log.date || ''}</td>
-                    <td>${log.head || ''}</td>
-                    <td>${log.offlineStatus || ''}</td>
-                    <td>${log.issue || ''}</td>
-                    <td>${log.repaired || ''}</td>
-                    <td>${log.notes || ''}</td>
-                    <td><button class="delete-btn" data-id="${index}">Delete</button></td>
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${log.line}</td>
+                    <td>${log.date}</td>
+                    <td>${log.head}</td>
+                    <td>${log.offlineStatus}</td>
+                    <td>${log.issue}</td>
+                    <td>${log.repaired}</td>
+                    <td>${log.notes}</td>
+                    <td><button class="delete-btn" data-id="${idx}">Delete</button></td>
                 `;
-                tbody.appendChild(row);
+                tbody.appendChild(tr);
             });
         }
 
-        // ----- POPULATE FILTER DROPDOWNS BASED ON ALL HISTORY LOGS -----
         function updateFilters() {
-            const lineSelect = document.querySelector('#filter-line');
-            const headSelect = document.querySelector('#filter-head');
-            const issueSelect = document.querySelector('#filter-issue');
+            const lineSel = document.querySelector('#filter-line');
+            const headSel = document.querySelector('#filter-head');
+            const issueSel = document.querySelector('#filter-issue');
 
-            // Remember current selections
-            const prevLine = lineSelect.value;
-            const prevHead = headSelect.value;
-            const prevIssue = issueSelect.value;
+            // Keep currently–selected values, if any
+            const prevLine = lineSel.value;
+            const prevHead = headSel.value;
+            const prevIssue = issueSel.value;
 
-            // Reset to default option
-            lineSelect.innerHTML = '<option value="">All Lines</option>';
-            headSelect.innerHTML = '<option value="">All Heads</option>';
-            issueSelect.innerHTML = '<option value="">All Issues</option>';
+            // Reset dropdowns to only the “All …” option
+            lineSel.innerHTML = '<option value="">All Lines</option>';
+            headSel.innerHTML = '<option value="">All Heads</option>';
+            issueSel.innerHTML = '<option value="">All Issues</option>';
 
-            const lines = new Set();
-            const heads = new Set();
-            const issues = new Set();
+            const lineSet = new Set();
+            const headSet = new Set();
+            const issueSet = new Set();
 
             historyLogs.forEach(log => {
-                if (log.line) lines.add(log.line);
-                if (log.head) heads.add(log.head);
-                if (log.issue) issues.add(log.issue);
+                if (log.line) lineSet.add(log.line);
+                if (log.head) headSet.add(log.head);
+                if (log.issue) issueSet.add(log.issue);
             });
 
-            // Append options in sorted order
-            Array.from(lines).sort().forEach(line => {
+            // Sort and append
+            Array.from(lineSet).sort().forEach(val => {
                 const opt = document.createElement('option');
-                opt.value = line;
-                opt.textContent = line;
-                lineSelect.appendChild(opt);
+                opt.value = val;
+                opt.textContent = val;
+                lineSel.appendChild(opt);
             });
-            Array.from(heads).sort().forEach(head => {
+            Array.from(headSet).sort().forEach(val => {
                 const opt = document.createElement('option');
-                opt.value = head;
-                opt.textContent = head;
-                headSelect.appendChild(opt);
+                opt.value = val;
+                opt.textContent = val;
+                headSel.appendChild(opt);
             });
-            Array.from(issues).sort().forEach(issue => {
+            Array.from(issueSet).sort().forEach(val => {
                 const opt = document.createElement('option');
-                opt.value = issue;
-                opt.textContent = issue;
-                issueSelect.appendChild(opt);
+                opt.value = val;
+                opt.textContent = val;
+                issueSel.appendChild(opt);
             });
 
-            // Restore previous selection if it still exists
-            if ([...lines].includes(prevLine)) {
-                lineSelect.value = prevLine;
-            }
-            if ([...heads].includes(prevHead)) {
-                headSelect.value = prevHead;
-            }
-            if ([...issues].includes(prevIssue)) {
-                issueSelect.value = prevIssue;
-            }
+            // Restore if still valid
+            if (Array.from(lineSet).includes(prevLine)) lineSel.value = prevLine;
+            if (Array.from(headSet).includes(prevHead)) headSel.value = prevHead;
+            if (Array.from(issueSet).includes(prevIssue)) issueSel.value = prevIssue;
         }
 
-        // ----- EVENT: JSON UPLOAD -----
-        document.querySelector('#json-upload').addEventListener('change', (event) => {
-            const file = event.target.files[0];
+        // Combined: re‐populate filters → re‐draw table
+        function refreshView() {
+            updateFilters();
+            renderTable();
+        }
+
+        // ------------------------------
+        // 4) EVENT HANDLERS
+        // ------------------------------
+        // 4.1 JSON Upload
+        document.querySelector('#json-upload').addEventListener('change', (e) => {
+            const file = e.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = function(evt) {
                 try {
-                    const uploadedLogs = JSON.parse(e.target.result);
-                    if (!Array.isArray(uploadedLogs)) {
-                        alert('Invalid JSON format: File must contain an array of log entries.');
+                    const arr = JSON.parse(evt.target.result);
+                    if (!Array.isArray(arr)) {
+                        alert('JSON must be an array of log‐objects.');
                         return;
                     }
-
-                    const validLogs = uploadedLogs
-                        .map(mapJsonToLog)
-                        .filter(log =>
-                            log.line || log.date || log.head ||
-                            log.offlineStatus || log.issue ||
-                            log.repaired || log.notes
-                        );
-
-                    if (validLogs.length === 0) {
-                        alert('No valid log entries found in the JSON file.');
+                    // Map & filter out entirely blank rows
+                    const mapped = arr.map(mapJsonToLog).filter(obj =>
+                        obj.line || obj.date || obj.head ||
+                        obj.offlineStatus || obj.issue ||
+                        obj.repaired || obj.notes
+                    );
+                    if (mapped.length === 0) {
+                        alert('No valid entries found in the JSON file.');
                         return;
                     }
-
-                    historyLogs = [...historyLogs, ...validLogs];
-                    localStorage.setItem('historyLogs', JSON.stringify(historyLogs));
-                    updateFilters();
-                    renderTable();
-                    alert('JSON file loaded successfully!');
-                    event.target.value = '';
-                } catch (error) {
-                    console.error('Error parsing JSON:', error);
-                    alert('Failed to load JSON file: Invalid format or corrupted file.');
+                    historyLogs = historyLogs.concat(mapped);
+                    saveToLocalStorage();
+                    refreshView();
+                    alert('JSON imported successfully.');
+                    // Reset file‐input so user can re‐upload same file if needed
+                    e.target.value = '';
+                } catch(err) {
+                    console.error('JSON parse error:', err);
+                    alert('Error reading JSON: invalid format.');
                 }
             };
             reader.readAsText(file);
         });
 
-        // ----- EVENT: EXPORT FULL JSON -----
+        // 4.2 Export ALL as JSON
         document.querySelector('#export-json').addEventListener('click', () => {
-            const jsonLogs = historyLogs.map(mapLogToJson);
-            const dataStr = JSON.stringify(jsonLogs, null, 2);
-            const blob = new Blob([dataStr], { type: 'application/json' });
+            const exportArr = historyLogs.map(mapLogToJson);
+            const blob = new Blob([JSON.stringify(exportArr, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -306,27 +336,24 @@
             URL.revokeObjectURL(url);
         });
 
-        // ----- EVENT: EXPORT ALL AS CSV -----
+        // 4.3 Export ALL as CSV
         document.querySelector('#export-csv').addEventListener('click', () => {
-            const csvRows = [];
-            const headers = ['Line', 'Date', 'Head', 'Offline Status', 'Issue', 'Repaired', 'Notes'];
-            csvRows.push(headers.join(','));
+            const rows = [];
+            const headers = ['Line','Date','Head','Offline Status','Issue','Repaired','Notes'];
+            rows.push(headers.join(','));
 
             historyLogs.forEach(log => {
-                const row = [
-                    `"${log.line.replace(/"/g, '""')}"`,
-                    `"${log.date.replace(/"/g, '""')}"`,
-                    `"${log.head.replace(/"/g, '""')}"`,
-                    `"${log.offlineStatus.replace(/"/g, '""')}"`,
-                    `"${log.issue.replace(/"/g, '""')}"`,
-                    `"${log.repaired.replace(/"/g, '""')}"`,
-                    `"${log.notes.replace(/"/g, '""')}"`
-                ];
-                csvRows.push(row.join(','));
+                const line = `"${(log.line || '').replace(/"/g, '""')}"`;
+                const date = `"${(log.date || '').replace(/"/g, '""')}"`;
+                const head = `"${(log.head || '').replace(/"/g, '""')}"`;
+                const off = `"${(log.offlineStatus || '').replace(/"/g, '""')}"`;
+                const issue = `"${(log.issue || '').replace(/"/g, '""')}"`;
+                const rep = `"${(log.repaired || '').replace(/"/g, '""')}"`;
+                const notes = `"${(log.notes || '').replace(/"/g, '""')}"`;
+                rows.push([line, date, head, off, issue, rep, notes].join(','));
             });
 
-            const csvString = csvRows.join('\n');
-            const blob = new Blob([csvString], { type: 'text/csv' });
+            const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -335,98 +362,116 @@
             URL.revokeObjectURL(url);
         });
 
-        // ----- EVENT: CLEAR DATABASE -----
+        // 4.4 Clear Entire Database
         document.querySelector('#clear-db').addEventListener('click', () => {
-            if (confirm('Are you sure you want to clear the entire database?')) {
-                historyLogs = [];
-                localStorage.removeItem('historyLogs');
-                updateFilters();
-                renderTable();
-            }
+            if (!confirm('Really clear the entire database? This cannot be undone.')) return;
+            historyLogs = [];
+            localStorage.removeItem('historyLogs');
+            console.log('Database cleared.');
+            refreshView();
         });
 
-        // ----- EVENT: CLEAN HISTORY (REMOVE BLANK ROWS) -----
+        // 4.5 Clean History (Remove Blank Rows)
         document.querySelector('#clean-history').addEventListener('click', () => {
+            const beforeCount = historyLogs.length;
             historyLogs = historyLogs.filter(log =>
                 log.line || log.date || log.head ||
                 log.offlineStatus || log.issue ||
                 log.repaired || log.notes
             );
-            localStorage.setItem('historyLogs', JSON.stringify(historyLogs));
-            updateFilters();
-            renderTable();
-            alert('History cleaned: empty rows removed.');
+            const afterCount = historyLogs.length;
+            saveToLocalStorage();
+            console.log(`Clean History removed ${beforeCount - afterCount} blank entries.`);
+            refreshView();
+            alert(`Cleaned history. Removed ${beforeCount - afterCount} blank‐only rows.`);
         });
 
-        // ----- EVENT: ADD NEW LOG ENTRY -----
+        // 4.6 Add a New Log Entry
         document.querySelector('#add-log-button').addEventListener('click', () => {
             const newLog = {
                 line: document.querySelector('#line-input').value.trim(),
-                date: document.querySelector('#date-input').value,
+                date: document.querySelector('#date-input').value || '',
                 head: document.querySelector('#head-input').value.trim(),
                 offlineStatus: document.querySelector('input[name="offline-status"]:checked')?.value || '',
                 issue: document.querySelector('#issue-input').value.trim(),
                 repaired: document.querySelector('input[name="repaired"]:checked')?.value || '',
                 notes: document.querySelector('#notes-input').value.trim()
             };
-            historyLogs.push(newLog);
-            localStorage.setItem('historyLogs', JSON.stringify(historyLogs));
 
-            // Clear form fields
+            // Push only if at least one field is filled
+            if (
+                !newLog.line &&
+                !newLog.date &&
+                !newLog.head &&
+                !newLog.offlineStatus &&
+                !newLog.issue &&
+                !newLog.repaired &&
+                !newLog.notes
+            ) {
+                alert('Cannot add an entirely blank log entry.');
+                return;
+            }
+
+            historyLogs.push(newLog);
+            saveToLocalStorage();
+            // Clear input fields
             document.querySelector('#line-input').value = '';
             document.querySelector('#date-input').value = '';
             document.querySelector('#head-input').value = '';
-            document.querySelectorAll('input[name="offline-status"]').forEach(i => i.checked = false);
+            document.querySelectorAll('input[name="offline-status"]').forEach(el => el.checked = false);
             document.querySelector('#issue-input').value = '';
-            document.querySelectorAll('input[name="repaired"]').forEach(i => i.checked = false);
+            document.querySelectorAll('input[name="repaired"]').forEach(el => el.checked = false);
             document.querySelector('#notes-input').value = '';
-
-            updateFilters();
-            renderTable();
+            refreshView();
         });
 
-        // ----- EVENT: DELETE A SINGLE LOG ENTRY -----
-        document.addEventListener('click', (event) => {
-            if (event.target.classList.contains('delete-btn')) {
-                const logId = parseInt(event.target.getAttribute('data-id'), 10);
-                if (confirm('Are you sure you want to delete this log entry?')) {
-                    historyLogs.splice(logId, 1);
-                    localStorage.setItem('historyLogs', JSON.stringify(historyLogs));
-                    updateFilters();
-                    renderTable();
-                }
-            }
+        // 4.7 Delete One Log Entry
+        document.addEventListener('click', (evt) => {
+            if (!evt.target.classList.contains('delete-btn')) return;
+            const idx = parseInt(evt.target.getAttribute('data-id'), 10);
+            if (isNaN(idx)) return;
+            if (!confirm('Delete this single entry?')) return;
+
+            historyLogs.splice(idx, 1);
+            saveToLocalStorage();
+            refreshView();
         });
 
-        // ----- EVENT: FILTER CHANGE -----
+        // 4.8 Filter Changes
         document.querySelector('#filter-line').addEventListener('change', renderTable);
         document.querySelector('#filter-head').addEventListener('change', renderTable);
         document.querySelector('#filter-issue').addEventListener('change', renderTable);
 
-        // ----- EVENT: EXPORT FILTERED DATA AS CSV -----
+        // 4.9 Export Filtered as CSV
         document.querySelector('#export-filtered-csv').addEventListener('click', () => {
-            const filteredRows = [];
-            filteredRows.push(['Line','Date','Head','Offline Status','Issue','Repaired','Notes']);
+            const selLine = document.querySelector('#filter-line').value;
+            const selHead = document.querySelector('#filter-head').value;
+            const selIssue = document.querySelector('#filter-issue').value;
 
-            const selectedLine = document.querySelector('#filter-line').value;
-            const selectedHead = document.querySelector('#filter-head').value;
-            const selectedIssue = document.querySelector('#filter-issue').value;
+            const rows = [];
+            rows.push(['Line','Date','Head','Offline Status','Issue','Repaired','Notes']);
 
             historyLogs.forEach(log => {
-                if (selectedLine && log.line !== selectedLine) return;
-                if (selectedHead && log.head !== selectedHead) return;
-                if (selectedIssue && log.issue !== selectedIssue) return;
-                filteredRows.push([log.line, log.date, log.head, log.offlineStatus, log.issue, log.repaired, log.notes]);
+                if (selLine && log.line !== selLine) return;
+                if (selHead && log.head !== selHead) return;
+                if (selIssue && log.issue !== selIssue) return;
+                rows.push([
+                    log.line, log.date, log.head,
+                    log.offlineStatus, log.issue,
+                    log.repaired, log.notes
+                ]);
             });
 
-            if (filteredRows.length === 1) {
+            if (rows.length === 1) {
                 alert('No matching rows to export.');
                 return;
             }
 
-            const csvLines = filteredRows.map(row => row.map(cell => `"${(cell||'').toString().replace(/"/g,'""')}"`).join(','));
-            const csvString = csvLines.join('\n');
-            const blob = new Blob([csvString], { type: 'text/csv' });
+            const csvStr = rows
+                .map(r => r.map(cell => `"${(cell||'').toString().replace(/"/g,'""')}"`).join(','))
+                .join('\n');
+
+            const blob = new Blob([csvStr], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -435,9 +480,12 @@
             URL.revokeObjectURL(url);
         });
 
-        // ----- INITIAL POPULATE AND RENDER -----
-        updateFilters();
-        renderTable();
+        // ------------------------------
+        // 5) INITIAL “FIRST” RENDER
+        // ------------------------------
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshView();
+        });
     </script>
 </body>
 </html>

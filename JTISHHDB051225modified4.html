@@ -1,0 +1,327 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Machine Head History Database</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+        .delete-btn {
+            background-color: #ff4d4d;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .delete-btn:hover {
+            background-color: #cc0000;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        .section input, .section select, .section button {
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Machine Head History Database</h1>
+
+    <div class="section">
+        <h2>Upload History CSV</h2>
+        <label>Upload History CSV File:</label>
+        <input type="file" id="csv-upload" accept=".csv">
+    </div>
+
+    <div class="section">
+        <h2>Backup and Restore</h2>
+        <label>Upload JSON Backup:</label>
+        <input type="file" id="json-upload" accept=".json"><br>
+        <button id="export-json">Export All Data as JSON</button>
+        <button id="export-csv">Export All Data as CSV</button>
+        <button id="clear-db">Clear Database</button>
+        <button id="clean-history">Clean History</button>
+    </div>
+
+    <div class="section">
+        <h2>Add to Log</h2>
+        <label>Line:</label>
+        <input type="text" id="line-input"><br>
+        <label>Date:</label>
+        <input type="date" id="date-input"><br>
+        <label>Head:</label>
+        <input type="text" id="head-input"><br>
+        <label>Offline Status:</label>
+        <input type="radio" name="offline-status" value="Offline"> Offline
+        <input type="radio" name="offline-status" value="Online"> Online<br>
+        <label>Issue:</label>
+        <input type="text" id="issue-input"><br>
+        <label>Repaired:</label>
+        <input type="radio" name="repaired" value="Fixed"> Fixed
+        <input type="radio" name="repaired" value="Not Fixed"> Not Fixed
+        <input type="radio" name="repaired" value="N/A"> N/A<br>
+        <label>Notes:</label>
+        <textarea id="notes-input"></textarea><br>
+        <button id="add-log-button">Add Log Entry</button>
+    </div>
+
+    <div class="section">
+        <h2>Filter and Export Filtered Data</h2>
+        <label>Filter by Line:</label>
+        <select id="filter-line">
+            <option value="">All Lines</option>
+        </select><br>
+        <label>Filter by Head:</label>
+        <select id="filter-head">
+            <option value="">All Heads</option>
+        </select><br>
+        <label>Filter by Issue:</label>
+        <select id="filter-issue">
+            <option value="">All Issues</option>
+        </select><br>
+        <button id="export-filtered-csv">Export Filtered Data as CSV</button>
+    </div>
+
+    <div class="section">
+        <h2>Head History</h2>
+        <table id="head-history-table">
+            <thead>
+                <tr>
+                    <th>Line</th>
+                    <th>Date</th>
+                    <th>Head</th>
+                    <th>Offline Status</th>
+                    <th>Issue</th>
+                    <th>Repaired</th>
+                    <th>Notes</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Dynamic rows populated by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Initialize history logs from localStorage
+        let historyLogs = JSON.parse(localStorage.getItem('historyLogs')) || [];
+
+        // Function to normalize date format (e.g., "M/D/YY" to "YYYY-MM-DD")
+        function normalizeDate(dateStr) {
+            if (!dateStr) return '';
+            // Handle "M/D/YY" format
+            if (/^\d{1,2}\/\d{1,2}\/\d{2}$/.test(dateStr)) {
+                const [month, day, year] = dateStr.split('/');
+                const fullYear = `20${year}`; // Assume 20XX
+                return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            }
+            // Assume already in "YYYY-MM-DD" or return as-is
+            return dateStr;
+        }
+
+        // Function to map JSON template fields to internal fields
+        function mapJsonToLog(jsonLog) {
+            return {
+                line: jsonLog.Line || '',
+                date: normalizeDate(jsonLog.Date) || '',
+                head: jsonLog.Head || '',
+                offlineStatus: jsonLog['Offline Status'] || '',
+                issue: jsonLog.Issue || '',
+                repaired: jsonLog.Repaired || '',
+                notes: jsonLog.Notes || ''
+            };
+        }
+
+        // Function to map internal fields to JSON template fields
+        function mapLogToJson(log) {
+            return {
+                Line: log.line || '',
+                Date: log.date || '',
+                Head: log.head || '',
+                'Offline Status': log.offlineStatus || '',
+                Issue: log.issue || '',
+                Repaired: log.repaired || '',
+                Notes: log.notes || ''
+            };
+        }
+
+        // Function to render the table
+        function renderTable() {
+            const tbody = document.querySelector('#head-history-table tbody');
+            tbody.innerHTML = ''; // Clear existing rows
+            historyLogs.forEach((log, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${log.line || ''}</td>
+                    <td>${log.date || ''}</td>
+                    <td>${log.head || ''}</td>
+                    <td>${log.offlineStatus || ''}</td>
+                    <td>${log.issue || ''}</td>
+                    <td>${log.repaired || ''}</td>
+                    <td>${log.notes || ''}</td>
+                    <td><button class="delete-btn" data-id="${index}">Delete</button></td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Event listener for JSON upload
+        document.querySelector('#json-upload').addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const uploadedLogs = JSON.parse(e.target.result);
+                    if (!Array.isArray(uploadedLogs)) {
+                        alert('Invalid JSON format: File must contain an array of log entries.');
+                        return;
+                    }
+
+                    // Map and validate log entries
+                    const validLogs = uploadedLogs
+                        .map(mapJsonToLog)
+                        .filter(log => 
+                            log.line || log.date || log.head || 
+                            log.offlineStatus || log.issue || 
+                            log.repaired || log.notes
+                        );
+
+                    if (validLogs.length === 0) {
+                        alert('No valid log entries found in the JSON file.');
+                        return;
+                    }
+
+                    // Append valid logs to historyLogs
+                    historyLogs = [...historyLogs, ...validLogs];
+                    localStorage.setItem('historyLogs', JSON.stringify(historyLogs));
+                    renderTable();
+                    alert('JSON file loaded successfully!');
+                    // Reset the file input
+                    event.target.value = '';
+                } catch (error) {
+                    console.error('Error parsing JSON:', error);
+                    alert('Failed to load JSON file: Invalid format or corrupted file.');
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        // Event listener for JSON export
+        document.querySelector('#export-json').addEventListener('click', () => {
+            const jsonLogs = historyLogs.map(mapLogToJson);
+            const dataStr = JSON.stringify(jsonLogs, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'history_backup.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        // Event listener for delete buttons
+        document.addEventListener('click', (event) => {
+            if (event.target.classList.contains('delete-btn')) {
+                const logId = event.target.getAttribute('data-id');
+                if (confirm('Are you sure you want to delete this log entry?')) {
+                    // Remove the log from the data source
+                    historyLogs.splice(logId, 1);
+                    // Update localStorage
+                    localStorage.setItem('historyLogs', JSON.stringify(historyLogs));
+                    // Re-render the table
+                    renderTable();
+                }
+            }
+        });
+
+        // Event listener for adding a new log
+        document.querySelector('#add-log-button').addEventListener('click', () => {
+            const newLog = {
+                line: document.querySelector('#line-input').value,
+                date: document.querySelector('#date-input').value,
+                head: document.querySelector('#head-input').value,
+                offlineStatus: document.querySelector('input[name="offline-status"]:checked')?.value || '',
+                issue: document.querySelector('#issue-input').value,
+                repaired: document.querySelector('input[name="repaired"]:checked')?.value || '',
+                notes: document.querySelector('#notes-input').value
+            };
+            historyLogs.push(newLog);
+            localStorage.setItem('historyLogs', JSON.stringify(historyLogs));
+            renderTable();
+            // Clear form inputs
+            document.querySelector('#line-input').value = '';
+            document.querySelector('#date-input').value = '';
+            document.querySelector('#head-input').value = '';
+            document.querySelectorAll('input[name="offline-status"]').forEach(input => input.checked = false);
+            document.querySelector('#issue-input').value = '';
+            document.querySelectorAll('input[name="repaired"]').forEach(input => input.checked = false);
+            document.querySelector('#notes-input').value = '';
+        });
+
+        // Initial table render
+        renderTable();
+    </script>
+</body>
+</html>

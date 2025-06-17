@@ -1,491 +1,136 @@
-<!DOCTYPE html>
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Machine Head History Database</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-        }
-        h1, h2 {
-            color: #333;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        th, td {
-            border: 1px solid #ccc;
-            padding: 8px;
-            text-align: left;
-        }
-        th {
-            background-color: #f4f4f4;
-        }
-        .delete-btn {
-            background-color: #ff4d4d;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            cursor: pointer;
-            border-radius: 3px;
-        }
-        .delete-btn:hover {
-            background-color: #cc0000;
-        }
-        .section {
-            margin-bottom: 30px;
-        }
-        .section input,
-        .section select,
-        .section button,
-        .section textarea {
-            margin: 5px 0;
-            display: block;
-        }
-    </style>
 </head>
 <body>
     <h1>Machine Head History Database</h1>
 
-    <div class="section">
-        <h2>Upload History CSV</h2>
-        <label>Upload History CSV File:</label>
+    <h2>Upload History CSV</h2>
+    <form>
+        <label for="csv-upload">Upload History CSV File:</label>
         <input type="file" id="csv-upload" accept=".csv">
-    </div>
+        <button type="submit">Upload</button>
+    </form>
 
-    <div class="section">
-        <h2>Backup and Restore</h2>
-        <label>Upload JSON Backup:</label>
-        <input type="file" id="json-upload" accept=".json"><br>
-        <button id="export-json">Export All Data as JSON</button>
-        <button id="export-csv">Export All Data as CSV</button>
-        <button id="clear-db">Clear Database</button>
-        <button id="clean-history">Clean History</button>
-    </div>
+    <h2>Backup and Restore</h2>
+    <form>
+        <label for="json-upload">Upload JSON Backup:</label>
+        <input type="file" id="json-upload" accept=".json">
+        <button type="submit">Upload</button>
+    </form>
+    <button>Export All Data as JSON</button>
+    <button>Export All Data as CSV</button>
+    <button>Clear Database</button>
+    <button>Clean History</button>
 
-    <div class="section">
-        <h2>Add to Log</h2>
-        <label>Line:</label>
-        <input type="text" id="line-input">
-        <label>Date:</label>
-        <input type="date" id="date-input">
-        <label>Head:</label>
-        <input type="text" id="head-input">
+    <h2>Add to Log</h2>
+    <form>
+        <label for="line">Line:</label>
+        <input type="text" id="line"><br><br>
+
+        <label for="date">Date:</label>
+        <input type="date" id="date"><br><br>
+
+        <label for="head">Head:</label>
+        <input type="text" id="head"><br><br>
+
         <label>Offline Status:</label>
-        <input type="radio" name="offline-status" value="Offline"> Offline
-        <input type="radio" name="offline-status" value="Online"> Online
-        <label>Issue:</label>
-        <input type="text" id="issue-input">
+        <input type="radio" id="offline" name="offline-status" value="Offline">
+        <label for="offline">Offline</label>
+        <input type="radio" id="online" name="offline-status" value="Online">
+        <label for="online">Online</label><br><br>
+
+        <label for="issue">Issue:</label>
+        <input type="text" id="issue"><br><br>
+
         <label>Repaired:</label>
-        <input type="radio" name="repaired" value="Fixed"> Fixed
-        <input type="radio" name="repaired" value="Not Fixed"> Not Fixed
-        <input type="radio" name="repaired" value="N/A"> N/A
-        <label>Notes:</label>
-        <textarea id="notes-input" rows="3"></textarea>
-        <button id="add-log-button">Add Log Entry</button>
-    </div>
+        <input type="radio" id="fixed" name="repaired" value="Fixed">
+        <label for="fixed">Fixed</label>
+        <input type="radio" id="not-fixed" name="repaired" value="Not Fixed">
+        <label for="not-fixed">Not Fixed</label>
+        <input type="radio" id="na" name="repaired" value="N/A">
+        <label for="na">N/A</label><br><br>
 
-    <div class="section">
-        <h2>Filter and Export Filtered Data</h2>
-        <label>Filter by Line:</label>
+        <label for="notes">Notes:</label>
+        <textarea id="notes"></textarea><br><br>
+
+        <button type="submit">Add Log Entry</button>
+    </form>
+
+    <h2>Filter and Export Filtered Data</h2>
+    <form>
+        <label for="filter-line">Filter by Line:</label>
         <select id="filter-line">
-            <option value="">All Lines</option>
-        </select>
-        <label>Filter by Head:</label>
+            <option>All Lines</option>
+        </select><br><br>
+
+        <label for="filter-head">Filter by Head:</label>
         <select id="filter-head">
-            <option value="">All Heads</option>
-        </select>
-        <label>Filter by Issue:</label>
+            <option>All Heads</option>
+        </select><br><br>
+
+        <label for="filter-issue">Filter by Issue:</label>
         <select id="filter-issue">
-            <option value="">All Issues</option>
-        </select>
-        <button id="export-filtered-csv">Export Filtered Data as CSV</button>
-    </div>
+            <option>All Issues</option>
+        </select><br><br>
 
-    <div class="section">
-        <h2>Head History</h2>
-        <table id="head-history-table">
-            <thead>
-                <tr>
-                    <th>Line</th>
-                    <th>Date</th>
-                    <th>Head</th>
-                    <th>Offline Status</th>
-                    <th>Issue</th>
-                    <th>Repaired</th>
-                    <th>Notes</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                <!-- Rows will be populated by JavaScript -->
-            </tbody>
-        </table>
-    </div>
+        <button>Export Filtered Data as CSV</button>
+    </form>
 
-    <script>
-        // ------------------------------
-        // 1) STATE & INITIAL LOAD
-        // ------------------------------
-        let historyLogs = [];
-
-        // Try to load from localStorage (if any)
-        try {
-            const stored = localStorage.getItem('historyLogs');
-            if (stored) {
-                historyLogs = JSON.parse(stored);
-                if (!Array.isArray(historyLogs)) {
-                    historyLogs = [];
-                }
-            }
-        } catch (err) {
-            console.warn('Could not parse historyLogs from localStorage:', err);
-            historyLogs = [];
-        }
-
-        // ------------------------------
-        // 2) UTILITY FUNCTIONS
-        // ------------------------------
-        function saveToLocalStorage() {
-            localStorage.setItem('historyLogs', JSON.stringify(historyLogs));
-        }
-
-        // Normalize dates from MM/DD/YY to YYYY-MM-DD
-        function normalizeDate(dateStr) {
-            if (!dateStr) return '';
-            // Detect formats like "1/5/21" or "01/05/21"
-            const parts = dateStr.split('/');
-            if (parts.length === 3 && parts[2].length === 2) {
-                const [m, d, yy] = parts;
-                const mm = m.padStart(2, '0');
-                const dd = d.padStart(2, '0');
-                const fullYear = '20' + yy;
-                return `${fullYear}-${mm}-${dd}`;
-            }
-            // Otherwise assume already YYYY-MM-DD
-            return dateStr;
-        }
-
-        // Map a JSON‐style object to our internal log‐object shape
-        function mapJsonToLog(obj) {
-            return {
-                line: obj.Line || '',
-                date: normalizeDate(obj.Date) || '',
-                head: obj.Head || '',
-                offlineStatus: obj['Offline Status'] || '',
-                issue: obj.Issue || '',
-                repaired: obj.Repaired || '',
-                notes: obj.Notes || ''
-            };
-        }
-
-        // Map internal object back to JSON‐style for export
-        function mapLogToJson(obj) {
-            return {
-                Line: obj.line || '',
-                Date: obj.date || '',
-                Head: obj.head || '',
-                'Offline Status': obj.offlineStatus || '',
-                Issue: obj.issue || '',
-                Repaired: obj.repaired || '',
-                Notes: obj.notes || ''
-            };
-        }
-
-        // ------------------------------
-        // 3) RENDER / FILTER LOGICS
-        // ------------------------------
-        function renderTable() {
-            const tbody = document.querySelector('#head-history-table tbody');
-            tbody.innerHTML = '';
-
-            const selLine = document.querySelector('#filter-line').value;
-            const selHead = document.querySelector('#filter-head').value;
-            const selIssue = document.querySelector('#filter-issue').value;
-
-            historyLogs.forEach((log, idx) => {
-                // Skip if not matching current filters
-                if (selLine && log.line !== selLine) return;
-                if (selHead && log.head !== selHead) return;
-                if (selIssue && log.issue !== selIssue) return;
-
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${log.line}</td>
-                    <td>${log.date}</td>
-                    <td>${log.head}</td>
-                    <td>${log.offlineStatus}</td>
-                    <td>${log.issue}</td>
-                    <td>${log.repaired}</td>
-                    <td>${log.notes}</td>
-                    <td><button class="delete-btn" data-id="${idx}">Delete</button></td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-
-        function updateFilters() {
-            const lineSel = document.querySelector('#filter-line');
-            const headSel = document.querySelector('#filter-head');
-            const issueSel = document.querySelector('#filter-issue');
-
-            // Keep currently–selected values, if any
-            const prevLine = lineSel.value;
-            const prevHead = headSel.value;
-            const prevIssue = issueSel.value;
-
-            // Reset dropdowns to only the “All …” option
-            lineSel.innerHTML = '<option value="">All Lines</option>';
-            headSel.innerHTML = '<option value="">All Heads</option>';
-            issueSel.innerHTML = '<option value="">All Issues</option>';
-
-            const lineSet = new Set();
-            const headSet = new Set();
-            const issueSet = new Set();
-
-            historyLogs.forEach(log => {
-                if (log.line) lineSet.add(log.line);
-                if (log.head) headSet.add(log.head);
-                if (log.issue) issueSet.add(log.issue);
-            });
-
-            // Sort and append
-            Array.from(lineSet).sort().forEach(val => {
-                const opt = document.createElement('option');
-                opt.value = val;
-                opt.textContent = val;
-                lineSel.appendChild(opt);
-            });
-            Array.from(headSet).sort().forEach(val => {
-                const opt = document.createElement('option');
-                opt.value = val;
-                opt.textContent = val;
-                headSel.appendChild(opt);
-            });
-            Array.from(issueSet).sort().forEach(val => {
-                const opt = document.createElement('option');
-                opt.value = val;
-                opt.textContent = val;
-                issueSel.appendChild(opt);
-            });
-
-            // Restore if still valid
-            if (Array.from(lineSet).includes(prevLine)) lineSel.value = prevLine;
-            if (Array.from(headSet).includes(prevHead)) headSel.value = prevHead;
-            if (Array.from(issueSet).includes(prevIssue)) issueSel.value = prevIssue;
-        }
-
-        // Combined: re‐populate filters → re‐draw table
-        function refreshView() {
-            updateFilters();
-            renderTable();
-        }
-
-        // ------------------------------
-        // 4) EVENT HANDLERS
-        // ------------------------------
-        // 4.1 JSON Upload
-        document.querySelector('#json-upload').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(evt) {
-                try {
-                    const arr = JSON.parse(evt.target.result);
-                    if (!Array.isArray(arr)) {
-                        alert('JSON must be an array of log‐objects.');
-                        return;
-                    }
-                    // Map & filter out entirely blank rows
-                    const mapped = arr.map(mapJsonToLog).filter(obj =>
-                        obj.line || obj.date || obj.head ||
-                        obj.offlineStatus || obj.issue ||
-                        obj.repaired || obj.notes
-                    );
-                    if (mapped.length === 0) {
-                        alert('No valid entries found in the JSON file.');
-                        return;
-                    }
-                    historyLogs = historyLogs.concat(mapped);
-                    saveToLocalStorage();
-                    refreshView();
-                    alert('JSON imported successfully.');
-                    // Reset file‐input so user can re‐upload same file if needed
-                    e.target.value = '';
-                } catch(err) {
-                    console.error('JSON parse error:', err);
-                    alert('Error reading JSON: invalid format.');
-                }
-            };
-            reader.readAsText(file);
-        });
-
-        // 4.2 Export ALL as JSON
-        document.querySelector('#export-json').addEventListener('click', () => {
-            const exportArr = historyLogs.map(mapLogToJson);
-            const blob = new Blob([JSON.stringify(exportArr, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'history_backup.json';
-            a.click();
-            URL.revokeObjectURL(url);
-        });
-
-        // 4.3 Export ALL as CSV
-        document.querySelector('#export-csv').addEventListener('click', () => {
-            const rows = [];
-            const headers = ['Line','Date','Head','Offline Status','Issue','Repaired','Notes'];
-            rows.push(headers.join(','));
-
-            historyLogs.forEach(log => {
-                const line = `"${(log.line || '').replace(/"/g, '""')}"`;
-                const date = `"${(log.date || '').replace(/"/g, '""')}"`;
-                const head = `"${(log.head || '').replace(/"/g, '""')}"`;
-                const off = `"${(log.offlineStatus || '').replace(/"/g, '""')}"`;
-                const issue = `"${(log.issue || '').replace(/"/g, '""')}"`;
-                const rep = `"${(log.repaired || '').replace(/"/g, '""')}"`;
-                const notes = `"${(log.notes || '').replace(/"/g, '""')}"`;
-                rows.push([line, date, head, off, issue, rep, notes].join(','));
-            });
-
-            const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'full_history.csv';
-            a.click();
-            URL.revokeObjectURL(url);
-        });
-
-        // 4.4 Clear Entire Database
-        document.querySelector('#clear-db').addEventListener('click', () => {
-            if (!confirm('Really clear the entire database? This cannot be undone.')) return;
-            historyLogs = [];
-            localStorage.removeItem('historyLogs');
-            console.log('Database cleared.');
-            refreshView();
-        });
-
-        // 4.5 Clean History (Remove Blank Rows)
-        document.querySelector('#clean-history').addEventListener('click', () => {
-            const beforeCount = historyLogs.length;
-            historyLogs = historyLogs.filter(log =>
-                log.line || log.date || log.head ||
-                log.offlineStatus || log.issue ||
-                log.repaired || log.notes
-            );
-            const afterCount = historyLogs.length;
-            saveToLocalStorage();
-            console.log(`Clean History removed ${beforeCount - afterCount} blank entries.`);
-            refreshView();
-            alert(`Cleaned history. Removed ${beforeCount - afterCount} blank‐only rows.`);
-        });
-
-        // 4.6 Add a New Log Entry
-        document.querySelector('#add-log-button').addEventListener('click', () => {
-            const newLog = {
-                line: document.querySelector('#line-input').value.trim(),
-                date: document.querySelector('#date-input').value || '',
-                head: document.querySelector('#head-input').value.trim(),
-                offlineStatus: document.querySelector('input[name="offline-status"]:checked')?.value || '',
-                issue: document.querySelector('#issue-input').value.trim(),
-                repaired: document.querySelector('input[name="repaired"]:checked')?.value || '',
-                notes: document.querySelector('#notes-input').value.trim()
-            };
-
-            // Push only if at least one field is filled
-            if (
-                !newLog.line &&
-                !newLog.date &&
-                !newLog.head &&
-                !newLog.offlineStatus &&
-                !newLog.issue &&
-                !newLog.repaired &&
-                !newLog.notes
-            ) {
-                alert('Cannot add an entirely blank log entry.');
-                return;
-            }
-
-            historyLogs.push(newLog);
-            saveToLocalStorage();
-            // Clear input fields
-            document.querySelector('#line-input').value = '';
-            document.querySelector('#date-input').value = '';
-            document.querySelector('#head-input').value = '';
-            document.querySelectorAll('input[name="offline-status"]').forEach(el => el.checked = false);
-            document.querySelector('#issue-input').value = '';
-            document.querySelectorAll('input[name="repaired"]').forEach(el => el.checked = false);
-            document.querySelector('#notes-input').value = '';
-            refreshView();
-        });
-
-        // 4.7 Delete One Log Entry
-        document.addEventListener('click', (evt) => {
-            if (!evt.target.classList.contains('delete-btn')) return;
-            const idx = parseInt(evt.target.getAttribute('data-id'), 10);
-            if (isNaN(idx)) return;
-            if (!confirm('Delete this single entry?')) return;
-
-            historyLogs.splice(idx, 1);
-            saveToLocalStorage();
-            refreshView();
-        });
-
-        // 4.8 Filter Changes
-        document.querySelector('#filter-line').addEventListener('change', renderTable);
-        document.querySelector('#filter-head').addEventListener('change', renderTable);
-        document.querySelector('#filter-issue').addEventListener('change', renderTable);
-
-        // 4.9 Export Filtered as CSV
-        document.querySelector('#export-filtered-csv').addEventListener('click', () => {
-            const selLine = document.querySelector('#filter-line').value;
-            const selHead = document.querySelector('#filter-head').value;
-            const selIssue = document.querySelector('#filter-issue').value;
-
-            const rows = [];
-            rows.push(['Line','Date','Head','Offline Status','Issue','Repaired','Notes']);
-
-            historyLogs.forEach(log => {
-                if (selLine && log.line !== selLine) return;
-                if (selHead && log.head !== selHead) return;
-                if (selIssue && log.issue !== selIssue) return;
-                rows.push([
-                    log.line, log.date, log.head,
-                    log.offlineStatus, log.issue,
-                    log.repaired, log.notes
-                ]);
-            });
-
-            if (rows.length === 1) {
-                alert('No matching rows to export.');
-                return;
-            }
-
-            const csvStr = rows
-                .map(r => r.map(cell => `"${(cell||'').toString().replace(/"/g,'""')}"`).join(','))
-                .join('\n');
-
-            const blob = new Blob([csvStr], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'filtered_history.csv';
-            a.click();
-            URL.revokeObjectURL(url);
-        });
-
-        // ------------------------------
-        // 5) INITIAL “FIRST” RENDER
-        // ------------------------------
-        document.addEventListener('DOMContentLoaded', () => {
-            refreshView();
-        });
-    </script>
+    <h2>Head History</h2>
+    <table border="1">
+        <tr>
+            <th>Line</th>
+            <th>Date</th>
+            <th>Head</th>
+            <th>Offline Status</th>
+            <th>Issue</th>
+            <th>Repaired</th>
+            <th>Notes</th>
+            <th>Action</th>
+        </tr>
+    </table>
 </body>
 </html>

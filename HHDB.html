@@ -85,6 +85,11 @@
             gap: 10px;
             margin: 10px 0;
         }
+        .date-filter-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -184,6 +189,15 @@
             <option value="">All Issues</option>
         </select>
 
+        <label>Filter by Date:</label>
+        <div class="date-filter-group">
+            <label for="filter-date-start">Start Date:</label>
+            <input type="date" id="filter-date-start">
+            <label for="filter-date-end">End Date:</label>
+            <input type="date" id="filter-date-end">
+        </div>
+
+        <button onclick="applyFilters()">Apply Filters</button>
         <button onclick="exportFilteredCSV()">Export Filtered Data as CSV</button>
     </section>
 
@@ -209,6 +223,7 @@
 
     <script>
         let historyData = [];
+        let filteredData = [];
 
         // Map JSON Repaired values to radio button values
         function mapRepairedValue(value) {
@@ -236,6 +251,7 @@
                         ...item,
                         Repaired: mapRepairedValue(item.Repaired)
                     }));
+                    filteredData = [...historyData];
                     updateTable();
                     updateFilters();
                     errorElement.textContent = "JSON uploaded successfully.";
@@ -247,7 +263,7 @@
         }
 
         // Update table with history data
-        function updateTable(data = historyData) {
+        function updateTable(data = filteredData) {
             const tbody = document.getElementById('history-body');
             tbody.innerHTML = '';
             data.forEach((item, index) => {
@@ -281,9 +297,36 @@
             issueFilter.innerHTML = '<option value="">All Issues</option>' + issues.map(issue => `<option value="${issue}">${issue}</option>`).join('');
         }
 
+        // Apply filters
+        function applyFilters() {
+            const lineFilter = document.getElementById('filter-line').value;
+            const headFilter = document.getElementById('filter-head').value;
+            const issueFilter = document.getElementById('filter-issue').value;
+            const startDate = document.getElementById('filter-date-start').value;
+            const endDate = document.getElementById('filter-date-end').value;
+
+            filteredData = historyData.filter(item => {
+                const itemDate = new Date(item.Date);
+                const start = startDate ? new Date(startDate) : null;
+                const end = endDate ? new Date(endDate) : null;
+
+                return (
+                    (!lineFilter || item.Line === lineFilter) &&
+                    (!headFilter || item.Head === headFilter) &&
+                    (!issueFilter || item.Issue === issueFilter) &&
+                    (!start || itemDate >= start) &&
+                    (!end || itemDate <= end)
+                );
+            });
+
+            updateTable();
+        }
+
         // Delete entry
         function deleteEntry(index) {
-            historyData.splice(index, 1);
+            const originalIndex = historyData.findIndex((item, i) => filteredData[index] === item);
+            historyData.splice(originalIndex, 1);
+            filteredData = [...historyData];
             updateTable();
             updateFilters();
         }
@@ -314,6 +357,7 @@
                 Notes: notes
             });
 
+            filteredData = [...historyData];
             updateTable();
             updateFilters();
             errorElement.textContent = "Log entry added successfully.";
@@ -357,16 +401,6 @@
 
         // Export filtered CSV
         function exportFilteredCSV() {
-            const lineFilter = document.getElementById('filter-line').value;
-            const headFilter = document.getElementById('filter-head').value;
-            const issueFilter = document.getElementById('filter-issue').value;
-
-            const filteredData = historyData.filter(item =>
-                (!lineFilter || item.Line === lineFilter) &&
-                (!headFilter || item.Head === headFilter) &&
-                (!issueFilter || item.Issue === issueFilter)
-            );
-
             const headers = ['Line', 'Date', 'Head', 'Offline Status', 'Issue', 'Repaired', 'Notes'];
             const csv = [
                 headers.join(','),
@@ -385,6 +419,7 @@
         function clearDatabase() {
             if (confirm('Are you sure you want to clear all data?')) {
                 historyData = [];
+                filteredData = [];
                 updateTable();
                 updateFilters();
                 document.getElementById('json-error').textContent = "Database cleared.";

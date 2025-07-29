@@ -42,399 +42,546 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Machine Head History Database</title>
+    <title>Machine Head Offline Database</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-        }
-        h1, h2 {
-            color: #333;
-        }
-        section {
-            margin-bottom: 30px;
-            padding: 20px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }
-        label {
-            display: inline-block;
-            margin: 10px 0;
-        }
-        input[type="text"], input[type="date"], input[type="file"], select, textarea {
-            width: 100%;
-            padding: 8px;
-            margin: 5px 0;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        button {
-            padding: 10px 20px;
-            background-color: #007BFF;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        .radio-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin: 10px 0;
-        }
-        .date-filter-group {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        th, td {
-            border: 1px solid #ccc;
-            padding: 10px;
-            text-align: left;
-        }
-        th {
-            background-color: #f4f4f4;
-        }
-        .error {
-            color: red;
-            margin-top: 10px;
-        }
+        body { font-family: Arial, sans-serif; }
+        table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        button, input, select { margin: 10px 0; }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://unpkg.com/papaparse@latest/papaparse.min.js"></script>
 </head>
 <body>
-    <h1>Machine Head History Database</h1>
-
+    <h1>Machine Head Offline Database</h1>
+    
     <section>
-        <h2>Upload History CSV</h2>
-        <label for="csv-upload">Upload History CSV File:</label>
-        <input type="file" id="csv-upload" accept=".csv">
-        <button onclick="uploadCSV()">Upload</button>
-        <p id="csv-error" class="error"></p>
+        <h2>Import and Export</h2>
+        <input type="file" id="jsonUpload" accept=".json,.csv">
+        <button id="exportJSON">Export All Data as JSON</button>
+        <button id="clearData">Clear Database</button>
+        <button id="exportPDF">Export Filtered Data as PDF</button>
     </section>
-
-    <section>
-        <h2>Backup and Restore</h2>
-        <label for="json-upload">Upload JSON Backup:</label>
-        <input type="file" id="json-upload" accept=".json">
-        <button onclick="uploadJSON()">Upload</button>
-        <p id="json-error" class="error"></p>
-        <br>
-        <button onclick="exportJSON()">Export All Data as JSON</button>
-        <button onclick="exportCSV()">Export All Data as CSV</button>
-        <button onclick="clearDatabase()">Clear Database</button>
-        <button onclick="cleanHistory()">Clean History</button>
-    </section>
-
+    
     <section>
         <h2>Add to Log</h2>
-        <label for="line">Line:</label>
-        <input type="text" id="line">
-
-        <label for="date">Date:</label>
-        <input type="date" id="date">
-
-        <label for="head">Head:</label>
-        <input type="text" id="head">
-
-        <label>Offline Status:</label>
-        <div class="radio-group">
-            <input type="radio" id="offline" name="offline-status" value="Offline">
-            <label for="offline">Offline</label>
-            <input type="radio" id="online" name="offline-status" value="Online">
-            <label for="online">Online</label>
-        </div>
-
-        <label for="issue">Issue:</label>
-        <input type="text" id="issue">
-
-        <label>Repaired:</label>
-        <div class="radio-group">
-            <input type="radio" id="fixed" name="repaired" value="Fixed">
-            <label for="fixed">Fixed</label>
-            <input type="radio" id="not-fixed" name="repaired" value="Not Fixed">
-            <label for="not-fixed">Not Fixed</label>
-            <input type="radio" id="na" name="repaired" value="N/A">
-            <label for="na">N/A</label>
-        </div>
-
-        <label for="notes">Notes:</label>
-        <textarea id="notes" rows="4"></textarea>
-
-        <button onclick="addLogEntry()">Add Log Entry</button>
-        <p id="log-error" class="error"></p>
+        <form id="addLogForm">
+            <label>Line: <input type="text" id="addLine" required></label><br>
+            <label>Date: <input type="date" id="addDate" required></label><br>
+            <label>Head: <input type="number" id="addHead" min="1" max="14" required></label><br>
+            <label>Offline Status: 
+                <select id="addOffline">
+                    <option>Active</option>
+                    <option>Offline</option>
+                </select>
+            </label><br>
+            <label>Issue: <input type="text" id="addIssue"></label><br>
+            <label>Repaired: 
+                <select id="addRepaired">
+                    <option>Fixed</option>
+                    <option>Not Fixed</option>
+                    <option>N/A</option>
+                </select>
+            </label><br>
+            <label>Notes: <textarea id="addNotes"></textarea></label><br>
+            <button type="submit">Add Log Entry</button>
+        </form>
     </section>
-
+    
     <section>
-        <h2>Filter and Export Filtered Data</h2>
-        <label for="filter-line">Filter by Line:</label>
-        <select id="filter-line">
-            <option value="">All Lines</option>
-        </select>
-
-        <label for="filter-head">Filter by Head:</label>
-        <select id="filter-head">
-            <option value="">All Heads</option>
-        </select>
-
-        <label for="filter-issue">Filter by Issue:</label>
-        <select id="filter-issue">
-            <option value="">All Issues</option>
-        </select>
-
-        <label>Filter by Date:</label>
-        <div class="date-filter-group">
-            <label for="filter-date-start">Start Date:</label>
-            <input type="date" id="filter-date-start">
-            <label for="filter-date-end">End Date:</label>
-            <input type="date" id="filter-date-end">
-        </div>
-
-        <button onclick="applyFilters()">Apply Filters</button>
-        <button onclick="exportFilteredCSV()">Export Filtered Data as CSV</button>
-    </section>
-
-    <section>
-        <h2>Head History</h2>
-        <table id="history-table">
+        <h2>Filter and View Offline Heads and Machine Notes</h2>
+        <label>Filter by Date: <select id="filterDate"><option value="">All Dates</option></select></label>
+        <label>Filter by Line: <select id="filterLine"><option value="">All Lines</option></select></label>
+        <label>Filter by Head: <select id="filterHead"><option value="">All Heads</option></select></label>
+        <label>Filter by Issue: <select id="filterIssue"><option value="">All Issues</option></select></label>
+        <button id="applyFilters">Apply Filters</button>
+        <table>
             <thead>
                 <tr>
-                    <th>Line</th>
                     <th>Date</th>
+                    <th>Line</th>
                     <th>Head</th>
-                    <th>Offline Status</th>
-                    <th>Issue</th>
+                    <th>Issue (Reasoning)</th>
                     <th>Repaired</th>
                     <th>Notes</th>
-                    <th>Action</th>
+                    <th>Machine Notes</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
-            <tbody id="history-body">
-            </tbody>
+            <tbody id="historyBody"></tbody>
         </table>
     </section>
 
     <script>
-        let historyData = [];
+        let appData = {
+            "data": {},
+            "dates": [],
+            "currentDay": ""
+        };
         let filteredData = [];
 
-        // Map JSON Repaired values to radio button values
-        function mapRepairedValue(value) {
-            if (value === "Yes" || value === "Fixed") return "Fixed";
-            if (value === "No" || value === "Not Fixed") return "Not Fixed";
-            return "N/A";
+        // Load data from local storage on initialization
+        function loadFromLocalStorage() {
+            const savedData = localStorage.getItem('machineHeadData');
+            if (savedData) {
+                appData = JSON.parse(savedData);
+            }
         }
 
-        // Upload JSON file
-        function uploadJSON() {
-            const fileInput = document.getElementById('json-upload');
-            const errorElement = document.getElementById('json-error');
-            if (!fileInput.files.length) {
-                errorElement.textContent = "Please select a JSON file.";
-                return;
-            }
+        // Save data to local storage
+        function saveToLocalStorage() {
+            localStorage.setItem('machineHeadData', JSON.stringify(appData));
+        }
 
-            const file = fileInput.files[0];
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    if (!Array.isArray(data)) throw new Error("Invalid JSON format: Expected an array.");
-                    historyData = data.map(item => ({
-                        ...item,
-                        Repaired: mapRepairedValue(item.Repaired)
-                    }));
-                    filteredData = [...historyData];
-                    updateTable();
-                    updateFilters();
-                    errorElement.textContent = "JSON uploaded successfully.";
-                } catch (err) {
-                    errorElement.textContent = `Error: ${err.message}`;
+        // Convert CSV date format (e.g., "6/4/25") to ISO format (e.g., "2025-06-04")
+        function normalizeDate(csvDate) {
+            if (!csvDate) return '';
+            const [month, day, year] = csvDate.split('/');
+            const fullYear = parseInt(year) < 100 ? `20${year.padStart(2, '0')}` : year;
+            return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        }
+
+        // Convert CSV data to appData structure
+        function convertCsvToAppData(csvData) {
+            const newData = { data: {}, dates: new Set() };
+
+            csvData.forEach(row => {
+                const date = normalizeDate(row.Date);
+                const line = row.Line;
+                const running = row.Running === 'Yes';
+
+                if (!newData.data[date]) {
+                    newData.data[date] = {};
+                    newData.dates.add(date);
                 }
-            };
-            reader.readAsText(file);
+                if (!newData.data[date][line]) {
+                    newData.data[date][line] = { heads: [], machineNotes: '', running };
+                }
+
+                // Process heads 1 to 14
+                for (let i = 1; i <= 14; i++) {
+                    const offline = row[`Head${i}_Offline`] || 'Active';
+                    const issue = row[`Head${i}_Issue`] || 'None';
+                    const repaired = row[`Head${i}_Repaired`] || 'Not Fixed';
+                    const notes = row[`Head${i}_Notes`] || '';
+
+                    if (offline === 'Offline') {
+                        newData.data[date][line].heads.push({
+                            head: i,
+                            offline,
+                            issue,
+                            repaired,
+                            notes
+                        });
+                    }
+
+                    // Assign notes to machineNotes if they contain machine-related keywords
+                    if (notes && (notes.includes('RCU') || notes.includes('DMU') || notes.includes('WCU') || notes.includes('Hopper Action'))) {
+                        newData.data[date][line].machineNotes = notes;
+                    }
+                }
+            });
+
+            newData.dates = Array.from(newData.dates).sort((a, b) => new Date(a) - new Date(b));
+            newData.currentDay = newData.dates[newData.dates.length - 1] || '';
+            return newData;
         }
 
-        // Update table with history data
-        function updateTable(data = filteredData) {
-            const tbody = document.getElementById('history-body');
+        // Convert flat JSON format (HHDBMay2025.json) to appData structure
+        function convertFlatJsonToAppData(flatData) {
+            const newData = { data: {}, dates: new Set() };
+
+            flatData.forEach(entry => {
+                const date = entry.Date;
+                const line = entry.Line;
+                const head = parseInt(entry.Head, 10) || entry.Head; // Handle non-numeric heads
+                const offline = entry['Offline Status'] || 'Offline';
+                const issue = entry.Issue || 'None';
+                const repaired = entry.Repaired || 'Not Fixed';
+                const notes = entry.Notes || '';
+
+                if (!newData.data[date]) {
+                    newData.data[date] = {};
+                    newData.dates.add(date);
+                }
+                if (!newData.data[date][line]) {
+                    newData.data[date][line] = { heads: [], machineNotes: '', running: true };
+                }
+                // Only add valid head entries (skip non-numeric heads like "CCW")
+                if (!isNaN(head)) {
+                    newData.data[date][line].heads.push({
+                        head,
+                        offline,
+                        issue,
+                        repaired,
+                        notes
+                    });
+                }
+                // Assign notes to machineNotes if they contain machine-related keywords
+                if (notes && (notes.includes('RCU') || notes.includes('DMU') || notes.includes('WCU'))) {
+                    newData.data[date][line].machineNotes = notes;
+                }
+            });
+
+            newData.dates = Array.from(newData.dates).sort((a, b) => new Date(a) - new Date(b));
+            newData.currentDay = newData.dates[newData.dates.length - 1] || '';
+            return newData;
+        }
+
+        // Merge new data with existing appData
+        function mergeData(newData) {
+            // Merge dates
+            newData.dates.forEach(date => {
+                if (!appData.dates.includes(date)) {
+                    appData.dates.push(date);
+                }
+            });
+            appData.dates.sort((a, b) => new Date(a) - new Date(b));
+            appData.currentDay = appData.dates[appData.dates.length - 1] || '';
+
+            // Merge data
+            Object.keys(newData.data).forEach(date => {
+                if (!appData.data[date]) {
+                    appData.data[date] = {};
+                }
+                Object.keys(newData.data[date]).forEach(line => {
+                    if (!appData.data[date][line]) {
+                        appData.data[date][line] = newData.data[date][line];
+                    } else {
+                        // Merge heads
+                        const existingHeads = appData.data[date][line].heads;
+                        const newHeads = newData.data[date][line].heads;
+                        newHeads.forEach(newHead => {
+                            const existingHead = existingHeads.find(h => h.head === newHead.head);
+                            if (!existingHead) {
+                                existingHeads.push(newHead);
+                            } else {
+                                // Update existing head if newer data
+                                Object.assign(existingHead, newHead);
+                            }
+                        });
+                        existingHeads.sort((a, b) => a.head - b.head);
+                        // Merge machineNotes (append if different)
+                        if (newData.data[date][line].machineNotes && newData.data[date][line].machineNotes !== appData.data[date][line].machineNotes) {
+                            appData.data[date][line].machineNotes = appData.data[date][line].machineNotes
+                                ? `${appData.data[date][line].machineNotes}; ${newData.data[date][line].machineNotes}`
+                                : newData.data[date][line].machineNotes;
+                        }
+                        // Preserve running status if present, otherwise use existing
+                        appData.data[date][line].running = newData.data[date][line].running !== undefined
+                            ? newData.data[date][line].running
+                            : appData.data[date][line].running;
+                    }
+                });
+            });
+        }
+
+        // Process uploaded JSON file
+        function processJsonUpload(jsonData) {
+            let newData;
+            // Check if JSON matches the appData structure (DTLD July 2025 format)
+            if (jsonData.data && jsonData.dates && jsonData.currentDay) {
+                newData = jsonData;
+            }
+            // Assume flat array format (HHDBMay2025.json)
+            else if (Array.isArray(jsonData)) {
+                newData = convertFlatJsonToAppData(jsonData);
+            } else {
+                throw new Error('Unsupported JSON format');
+            }
+            mergeData(newData);
+            return appData;
+        }
+
+        // Process uploaded CSV file
+        function processCsvUpload(csvText) {
+            Papa.parse(csvText, {
+                header: true,
+                skipEmptyLines: true,
+                transformHeader: header => header.trim().replace(/^"|"$/g, ''),
+                transform: (value, header) => {
+                    let cleaned = value.trim().replace(/^"|"$/g, '');
+                    return cleaned;
+                },
+                complete: results => {
+                    const newData = convertCsvToAppData(results.data);
+                    mergeData(newData);
+                    saveToLocalStorage();
+                    populateFilters();
+                    displayOfflineHeads();
+                },
+                error: err => alert('Error processing CSV file: ' + err.message)
+            });
+        }
+
+        function populateFilters() {
+            const lines = new Set();
+            const heads = new Set();
+            const issues = new Set();
+            const dates = new Set();
+
+            Object.keys(appData.data).forEach(date => {
+                dates.add(date);
+                Object.keys(appData.data[date]).forEach(line => {
+                    lines.add(line);
+                    const lineData = appData.data[date][line];
+                    lineData.heads.forEach(head => {
+                        if (head.offline === 'Offline') {
+                            heads.add(head.head.toString());
+                            issues.add(head.issue);
+                        }
+                    });
+                });
+            });
+
+            const filterDate = document.getElementById('filterDate');
+            filterDate.innerHTML = '<option value="">All Dates</option>';
+            Array.from(dates).sort((a, b) => new Date(b) - new Date(a)).forEach(d => {
+                const option = document.createElement('option');
+                option.value = d;
+                option.textContent = d;
+                filterDate.appendChild(option);
+            });
+
+            const filterLine = document.getElementById('filterLine');
+            filterLine.innerHTML = '<option value="">All Lines</option>';
+            Array.from(lines).sort().forEach(l => {
+                const option = document.createElement('option');
+                option.value = l;
+                option.textContent = l;
+                filterLine.appendChild(option);
+            });
+
+            const filterHead = document.getElementById('filterHead');
+            filterHead.innerHTML = '<option value="">All Heads</option>';
+            Array.from(heads).sort((a, b) => a - b).forEach(h => {
+                const option = document.createElement('option');
+                option.value = h;
+                option.textContent = h;
+                filterHead.appendChild(option);
+            });
+
+            const filterIssue = document.getElementById('filterIssue');
+            filterIssue.innerHTML = '<option value="">All Issues</option>';
+            Array.from(issues).sort().forEach(i => {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i;
+                filterIssue.appendChild(option);
+            });
+        }
+
+        function displayOfflineHeads(filtered = false) {
+            const tbody = document.getElementById('historyBody');
             tbody.innerHTML = '';
-            data.forEach((item, index) => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${item.Line || ''}</td>
-                    <td>${item.Date || ''}</td>
-                    <td>${item.Head || ''}</td>
-                    <td>${item['Offline Status'] || ''}</td>
-                    <td>${item.Issue || ''}</td>
-                    <td>${item.Repaired || ''}</td>
-                    <td>${item.Notes || ''}</td>
-                    <td><button onclick="deleteEntry(${index})">Delete</button></td>
-                `;
-                tbody.appendChild(row);
+            const dates = appData.dates.slice().sort((a, b) => new Date(b) - new Date(a)); // Latest to oldest
+            let displayItems = [];
+
+            for (const date of dates) {
+                const dailyData = appData.data[date] || {};
+                const lines = Object.keys(dailyData).sort();
+                for (const line of lines) {
+                    const lineData = dailyData[line];
+                    const machineNotes = lineData.machineNotes || '';
+                    const offlineHeads = lineData.heads.filter(h => h.offline === 'Offline');
+
+                    // Collect offline heads
+                    offlineHeads.forEach(head => {
+                        displayItems.push({ date, line, head: head.head, issue: head.issue, repaired: head.repaired, notes: head.notes, machineNotes: '', type: 'head' });
+                    });
+
+                    // Collect machine notes
+                    if (machineNotes.trim() !== '') {
+                        displayItems.push({ date, line, head: 'N/A', issue: 'N/A', repaired: 'N/A', notes: 'N/A', machineNotes, type: 'machineNote' });
+                    }
+                }
+            }
+
+            if (filtered) {
+                const filterDate = document.getElementById('filterDate').value;
+                const filterLine = document.getElementById('filterLine').value;
+                const filterHead = document.getElementById('filterHead').value;
+                const filterIssue = document.getElementById('filterIssue').value;
+
+                displayItems = displayItems.filter(item => {
+                    if (filterDate && item.date !== filterDate) return false;
+                    if (filterLine && item.line !== filterLine) return false;
+                    if (filterHead && item.head.toString() !== filterHead) return false;
+                    if (filterIssue && item.issue !== filterIssue) return false;
+                    return true;
+                });
+            }
+
+            filteredData = displayItems; // Store for PDF export
+
+            displayItems.forEach(item => {
+                const row = tbody.insertRow();
+                row.insertCell().textContent = item.date;
+                row.insertCell().textContent = item.line;
+                row.insertCell().textContent = item.head;
+                row.insertCell().textContent = item.issue;
+                row.insertCell().textContent = item.repaired;
+                row.insertCell().textContent = item.notes;
+                row.insertCell().textContent = item.machineNotes;
+                const actionsCell = row.insertCell();
+                if (item.type === 'head') {
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.textContent = 'Delete';
+                    deleteBtn.onclick = () => deleteEntry(item.date, item.line, parseInt(item.head));
+                    actionsCell.appendChild(deleteBtn);
+                } else if (item.type === 'machineNote') {
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.textContent = 'Clear Machine Notes';
+                    deleteBtn.onclick = () => clearMachineNotes(item.date, item.line);
+                    actionsCell.appendChild(deleteBtn);
+                }
             });
         }
 
-        // Update filter dropdowns
-        function updateFilters() {
-            const lines = [...new Set(historyData.map(item => item.Line))].sort();
-            const heads = [...new Set(historyData.map(item => item.Head))].sort();
-            const issues = [...new Set(historyData.map(item => item.Issue))].sort();
-
-            const lineFilter = document.getElementById('filter-line');
-            const headFilter = document.getElementById('filter-head');
-            const issueFilter = document.getElementById('filter-issue');
-
-            lineFilter.innerHTML = '<option value="">All Lines</option>' + lines.map(line => `<option value="${line}">${line}</option>`).join('');
-            headFilter.innerHTML = '<option value="">All Heads</option>' + heads.map(head => `<option value="${head}">${head}</option>`).join('');
-            issueFilter.innerHTML = '<option value="">All Issues</option>' + issues.map(issue => `<option value="${issue}">${issue}</option>`).join('');
+        function deleteEntry(date, line, headNum) {
+            const lineData = appData.data[date][line];
+            lineData.heads = lineData.heads.filter(h => h.head !== headNum);
+            saveToLocalStorage();
+            populateFilters();
+            displayOfflineHeads(true);
         }
 
-        // Apply filters
-        function applyFilters() {
-            const lineFilter = document.getElementById('filter-line').value;
-            const headFilter = document.getElementById('filter-head').value;
-            const issueFilter = document.getElementById('filter-issue').value;
-            const startDate = document.getElementById('filter-date-start').value;
-            const endDate = document.getElementById('filter-date-end').value;
-
-            filteredData = historyData.filter(item => {
-                const itemDate = new Date(item.Date);
-                const start = startDate ? new Date(startDate) : null;
-                const end = endDate ? new Date(endDate) : null;
-
-                return (
-                    (!lineFilter || item.Line === lineFilter) &&
-                    (!headFilter || item.Head === headFilter) &&
-                    (!issueFilter || item.Issue === issueFilter) &&
-                    (!start || itemDate >= start) &&
-                    (!end || itemDate <= end)
-                );
-            });
-
-            updateTable();
+        function clearMachineNotes(date, line) {
+            const lineData = appData.data[date][line];
+            lineData.machineNotes = '';
+            saveToLocalStorage();
+            populateFilters();
+            displayOfflineHeads(true);
         }
 
-        // Delete entry
-        function deleteEntry(index) {
-            const originalIndex = historyData.findIndex((item, i) => filteredData[index] === item);
-            historyData.splice(originalIndex, 1);
-            filteredData = [...historyData];
-            updateTable();
-            updateFilters();
-        }
+        document.addEventListener('DOMContentLoaded', () => {
+            loadFromLocalStorage();
+            displayOfflineHeads();
+            populateFilters();
+        });
 
-        // Add log entry
-        function addLogEntry() {
-            const line = document.getElementById('line').value;
-            const date = document.getElementById('date').value;
-            const head = document.getElementById('head').value;
-            const offlineStatus = document.querySelector('input[name="offline-status"]:checked')?.value || '';
-            const issue = document.getElementById('issue').value;
-            const repaired = document.querySelector('input[name="repaired"]:checked')?.value || 'N/A';
-            const notes = document.getElementById('notes').value;
-            const errorElement = document.getElementById('log-error');
+        document.getElementById('jsonUpload').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        if (file.name.endsWith('.csv')) {
+                            processCsvUpload(ev.target.result);
+                        } else if (file.name.endsWith('.json')) {
+                            const jsonData = JSON.parse(ev.target.result);
+                            processJsonUpload(jsonData);
+                            saveToLocalStorage();
+                            populateFilters();
+                            displayOfflineHeads();
+                        } else {
+                            throw new Error('Unsupported file type');
+                        }
+                    } catch (error) {
+                        alert('Error processing file: ' + error.message);
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
 
-            if (!line || !date || !head) {
-                errorElement.textContent = "Line, Date, and Head are required.";
+        document.getElementById('exportJSON').addEventListener('click', () => {
+            const blob = new Blob([JSON.stringify(appData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'machine_data.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        document.getElementById('clearData').addEventListener('click', () => {
+            if (confirm('Are you sure you want to clear all data?')) {
+                appData = { "data": {}, "dates": [], "currentDay": "" };
+                saveToLocalStorage();
+                populateFilters();
+                displayOfflineHeads();
+            }
+        });
+
+        document.getElementById('addLogForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const line = document.getElementById('addLine').value.trim();
+            const date = document.getElementById('addDate').value;
+            const headNum = parseInt(document.getElementById('addHead').value);
+            const offline = document.getElementById('addOffline').value;
+            const issue = document.getElementById('addIssue').value.trim();
+            const repaired = document.getElementById('addRepaired').value;
+            const notes = document.getElementById('addNotes').value.trim();
+
+            if (!appData.data[date]) {
+                appData.data[date] = {};
+                appData.dates.push(date);
+                appData.dates.sort((a, b) => new Date(a) - new Date(b));
+                appData.currentDay = appData.dates[appData.dates.length - 1];
+            }
+            if (!appData.data[date][line]) {
+                appData.data[date][line] = { heads: [], machineNotes: '', running: true };
+            }
+            const existingHead = appData.data[date][line].heads.find(h => h.head === headNum);
+            if (existingHead) {
+                alert('Head already exists for this line and date. Edit manually if needed.');
                 return;
             }
-
-            historyData.push({
-                Line: line,
-                Date: date,
-                Head: head,
-                "Offline Status": offlineStatus,
-                Issue: issue,
-                Repaired: repaired,
-                Notes: notes
+            appData.data[date][line].heads.push({
+                head: headNum,
+                offline,
+                issue,
+                repaired,
+                notes
             });
+            appData.data[date][line].heads.sort((a, b) => a.head - b.head);
+            document.getElementById('addLogForm').reset();
+            saveToLocalStorage();
+            populateFilters();
+            displayOfflineHeads();
+        });
 
-            filteredData = [...historyData];
-            updateTable();
-            updateFilters();
-            errorElement.textContent = "Log entry added successfully.";
+        document.getElementById('applyFilters').addEventListener('click', () => {
+            displayOfflineHeads(true);
+        });
 
-            // Clear form
-            document.getElementById('line').value = '';
-            document.getElementById('date').value = '';
-            document.getElementById('head').value = '';
-            document.querySelectorAll('input[name="offline-status"]').forEach(r => r.checked = false);
-            document.getElementById('issue').value = '';
-            document.querySelectorAll('input[name="repaired"]').forEach(r => r.checked = false);
-            document.getElementById('notes').value = '';
-        }
-
-        // Export JSON
-        function exportJSON() {
-            const blob = new Blob([JSON.stringify(historyData, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'history_backup.json';
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        // Export CSV
-        function exportCSV() {
-            const headers = ['Line', 'Date', 'Head', 'Offline Status', 'Issue', 'Repaired', 'Notes'];
-            const csv = [
-                headers.join(','),
-                ...historyData.map(row => headers.map(header => `"${(row[header] || '').toString().replace(/"/g, '""')}"`).join(','))
-            ].join('\n');
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'history_export.csv';
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        // Export filtered CSV
-        function exportFilteredCSV() {
-            const headers = ['Line', 'Date', 'Head', 'Offline Status', 'Issue', 'Repaired', 'Notes'];
-            const csv = [
-                headers.join(','),
-                ...filteredData.map(row => headers.map(header => `"${(row[header] || '').toString().replace(/"/g, '""')}"`).join(','))
-            ].join('\n');
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'filtered_history.csv';
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        // Clear database
-        function clearDatabase() {
-            if (confirm('Are you sure you want to clear all data?')) {
-                historyData = [];
-                filteredData = [];
-                updateTable();
-                updateFilters();
-                document.getElementById('json-error').textContent = "Database cleared.";
-            }
-        }
-
-        // Clean history (stub)
-        function cleanHistory() {
-            alert('Clean History functionality not implemented.');
-        }
-
-        // Upload CSV (stub)
-        function uploadCSV() {
-            alert('CSV upload functionality not implemented.');
-        }
+        document.getElementById('exportPDF').addEventListener('click', () => {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.text('Machine Head Offline Database', 14, 10);
+            doc.autoTable({
+                startY: 20,
+                head: [['Date', 'Line', 'Head', 'Issue (Reasoning)', 'Repaired', 'Notes', 'Machine Notes']],
+                body: filteredData.map(item => [
+                    item.date,
+                    item.line,
+                    item.head,
+                    item.issue,
+                    item.repaired,
+                    item.notes,
+                    item.machineNotes
+                ]),
+                styles: { fontSize: 8, cellPadding: 2 },
+                columnStyles: {
+                    0: { cellWidth: 25 }, // Date
+                    1: { cellWidth: 20 }, // Line
+                    2: { cellWidth: 15 }, // Head
+                    3: { cellWidth: 25 }, // Issue
+                    4: { cellWidth: 20 }, // Repaired
+                    5: { cellWidth: 30 }, // Notes
+                    6: { cellWidth: 55 }  // Machine Notes
+                },
+                didParseCell: (data) => {
+                    data.cell.styles.overflow = 'linebreak';
+                }
+            });
+            doc.save('machine_data.pdf');
+        });
     </script>
 </body>
 </html>

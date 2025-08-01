@@ -48,18 +48,20 @@
         table { border-collapse: collapse; width: 100%; margin-top: 20px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #f2f2f2; }
-        button, input, select { margin: 10px 0; }
+        button, input, select, textarea { margin: 10px 0; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: white; margin: 15% auto; padding: 20px; width: 80%; max-width: 500px; }
+        .close { float: right; cursor: pointer; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-    <script src="https://unpkg.com/papaparse@latest/papaparse.min.js"></script>
 </head>
 <body>
     <h1>Machine Head Offline Database</h1>
     
     <section>
         <h2>Import and Export</h2>
-        <input type="file" id="jsonUpload" accept=".json,.csv">
+        <input type="file" id="jsonUpload" accept=".json">
         <button id="exportJSON">Export All Data as JSON</button>
         <button id="clearData">Clear Database</button>
         <button id="exportPDF">Export Filtered Data as PDF</button>
@@ -109,15 +111,19 @@
         <label>Filter by Line: <select id="filterLine"><option value="">All Lines</option></select></label>
         <label>Filter by Head: <select id="filterHead"><option value="">All Heads</option></select></label>
         <label>Filter by Issue: <select id="filterIssue"><option value="">All Issues</option></select></label>
-        <label>Sort by: <select id="sortBy">
-            <option value="date">Date</option>
-            <option value="line">Line</option>
-            <option value="both">Both (Date then Line)</option>
-        </select></label>
-        <label>Order: <select id="sortOrder">
-            <option value="desc">Descending</option>
-            <option value="asc">Ascending</option>
-        </select></label>
+        <label>Sort by: 
+            <select id="sortBy">
+                <option>Date</option>
+                <option>Line</option>
+                <option>Both (Date then Line)</option>
+            </select>
+        </label>
+        <label>Order: 
+            <select id="sortOrder">
+                <option>Descending</option>
+                <option>Ascending</option>
+            </select>
+        </label>
         <button id="applyFilters">Apply Filters and Sort</button>
         <table>
             <thead>
@@ -136,6 +142,48 @@
         </table>
     </section>
 
+    <!-- Edit Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Edit Entry</h2>
+            <form id="editForm">
+                <label>Line: <input type="text" id="editLine" required></label><br>
+                <label>Date: <input type="date" id="editDate" required></label><br>
+                <label>Head: <input type="text" id="editHead" readonly></label><br>
+                <label>Offline Status: 
+                    <select id="editOffline">
+                        <option>Active</option>
+                        <option>Offline</option>
+                    </select>
+                </label><br>
+                <label>Issue: 
+                    <select id="editIssue">
+                        <option>None</option>
+                        <option>Operator</option>
+                        <option>Chute</option>
+                        <option>Installed Wrong</option>
+                        <option>Detached Head</option>
+                        <option>Hopper Issues</option>
+                        <option>Stepper Motor Error</option>
+                        <option>Load Cell</option>
+                        <option>Other</option>
+                    </select>
+                </label><br>
+                <label>Repaired: 
+                    <select id="editRepaired">
+                        <option>Fixed</option>
+                        <option>Not Fixed</option>
+                        <option>N/A</option>
+                    </select>
+                </label><br>
+                <label>Notes: <textarea id="editNotes"></textarea></label><br>
+                <label>Machine Notes: <textarea id="editMachineNotes"></textarea></label><br>
+                <button type="submit">Save Changes</button>
+            </form>
+        </div>
+    </div>
+
     <script>
         let appData = {
             "data": {},
@@ -144,7 +192,7 @@
         };
         let filteredData = [];
 
-        // Load data from local storage on initialization
+        // Load data from local storage
         function loadFromLocalStorage() {
             const savedData = localStorage.getItem('machineHeadData');
             if (savedData) {
@@ -164,7 +212,7 @@
             flatData.forEach(entry => {
                 const date = entry.Date;
                 const line = entry.Line;
-                const head = parseInt(entry.Head, 10) || entry.Head; // Handle non-numeric heads
+                const head = parseInt(entry.Head, 10) || entry.Head;
                 const offline = entry['Offline Status'] || 'Offline';
                 const issue = entry.Issue || 'None';
                 const repaired = entry.Repaired || 'Not Fixed';
@@ -177,7 +225,6 @@
                 if (!newData.data[date][line]) {
                     newData.data[date][line] = { heads: [], machineNotes: '', running: true };
                 }
-                // Only add valid head entries (skip non-numeric heads like "CCW")
                 if (!isNaN(head)) {
                     newData.data[date][line].heads.push({
                         head,
@@ -187,7 +234,6 @@
                         notes
                     });
                 }
-                // Assign notes to machineNotes if they contain machine-related keywords
                 if (notes && (notes.includes('RCU') || notes.includes('DMU') || notes.includes('WCU'))) {
                     newData.data[date][line].machineNotes = notes;
                 }
@@ -198,63 +244,8 @@
             return newData;
         }
 
-        // Convert CSV date format (e.g., "6/4/25") to ISO format (e.g., "2025-06-04")
-        function normalizeDate(csvDate) {
-            if (!csvDate) return '';
-            const [month, day, year] = csvDate.split('/');
-            const fullYear = parseInt(year) < 100 ? `20${year.padStart(2, '0')}` : year;
-            return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-        }
-
-        // Convert CSV data to appData structure
-        function convertCsvToAppData(csvData) {
-            const newData = { data: {}, dates: new Set() };
-
-            csvData.forEach(row => {
-                const date = normalizeDate(row.Date);
-                const line = row.Line;
-                const running = row.Running === 'Yes';
-
-                if (!newData.data[date]) {
-                    newData.data[date] = {};
-                    newData.dates.add(date);
-                }
-                if (!newData.data[date][line]) {
-                    newData.data[date][line] = { heads: [], machineNotes: '', running };
-                }
-
-                // Process heads 1 to 14
-                for (let i = 1; i <= 14; i++) {
-                    const offline = row[`Head${i}_Offline`] || 'Active';
-                    const issue = row[`Head${i}_Issue`] || 'None';
-                    const repaired = row[`Head${i}_Repaired`] || 'Not Fixed';
-                    const notes = row[`Head${i}_Notes`] || '';
-
-                    if (offline === 'Offline') {
-                        newData.data[date][line].heads.push({
-                            head: i,
-                            offline,
-                            issue,
-                            repaired,
-                            notes
-                        });
-                    }
-
-                    // Assign notes to machineNotes if they contain machine-related keywords
-                    if (notes && (notes.includes('RCU') || notes.includes('DMU') || notes.includes('WCU') || notes.includes('Hopper Action'))) {
-                        newData.data[date][line].machineNotes = notes;
-                    }
-                }
-            });
-
-            newData.dates = Array.from(newData.dates).sort((a, b) => new Date(a) - new Date(b));
-            newData.currentDay = newData.dates[newData.dates.length - 1] || '';
-            return newData;
-        }
-
         // Merge new data with existing appData
         function mergeData(newData) {
-            // Merge dates
             newData.dates.forEach(date => {
                 if (!appData.dates.includes(date)) {
                     appData.dates.push(date);
@@ -263,7 +254,6 @@
             appData.dates.sort((a, b) => new Date(a) - new Date(b));
             appData.currentDay = appData.dates[appData.dates.length - 1] || '';
 
-            // Merge data
             Object.keys(newData.data).forEach(date => {
                 if (!appData.data[date]) {
                     appData.data[date] = {};
@@ -272,7 +262,6 @@
                     if (!appData.data[date][line]) {
                         appData.data[date][line] = newData.data[date][line];
                     } else {
-                        // Merge heads
                         const existingHeads = appData.data[date][line].heads;
                         const newHeads = newData.data[date][line].heads;
                         newHeads.forEach(newHead => {
@@ -280,18 +269,15 @@
                             if (!existingHead) {
                                 existingHeads.push(newHead);
                             } else {
-                                // Update existing head if newer data
                                 Object.assign(existingHead, newHead);
                             }
                         });
                         existingHeads.sort((a, b) => a.head - b.head);
-                        // Merge machineNotes (append if different)
                         if (newData.data[date][line].machineNotes && newData.data[date][line].machineNotes !== appData.data[date][line].machineNotes) {
                             appData.data[date][line].machineNotes = appData.data[date][line].machineNotes
                                 ? `${appData.data[date][line].machineNotes}; ${newData.data[date][line].machineNotes}`
                                 : newData.data[date][line].machineNotes;
                         }
-                        // Preserve running status if present, otherwise use existing
                         appData.data[date][line].running = newData.data[date][line].running !== undefined
                             ? newData.data[date][line].running
                             : appData.data[date][line].running;
@@ -303,39 +289,15 @@
         // Process uploaded JSON file
         function processJsonUpload(jsonData) {
             let newData;
-            // Check if JSON matches the appData structure (DTLD July 2025 format)
             if (jsonData.data && jsonData.dates && jsonData.currentDay) {
                 newData = jsonData;
-            }
-            // Assume flat array format (HHDBMay2025.json)
-            else if (Array.isArray(jsonData)) {
+            } else if (Array.isArray(jsonData)) {
                 newData = convertFlatJsonToAppData(jsonData);
             } else {
                 throw new Error('Unsupported JSON format');
             }
             mergeData(newData);
             return appData;
-        }
-
-        // Process uploaded CSV file
-        function processCsvUpload(csvText) {
-            Papa.parse(csvText, {
-                header: true,
-                skipEmptyLines: true,
-                transformHeader: header => header.trim().replace(/^"|"$/g, ''),
-                transform: (value, header) => {
-                    let cleaned = value.trim().replace(/^"|"$/g, '');
-                    return cleaned;
-                },
-                complete: results => {
-                    const newData = convertCsvToAppData(results.data);
-                    mergeData(newData);
-                    saveToLocalStorage();
-                    populateFilters();
-                    displayOfflineHeads();
-                },
-                error: err => alert('Error processing CSV file: ' + err.message)
-            });
         }
 
         function populateFilters() {
@@ -378,7 +340,7 @@
 
             const filterHead = document.getElementById('filterHead');
             filterHead.innerHTML = '<option value="">All Heads</option>';
-            Array.from(heads).sort((a, b) => parseInt(a, 10) - parseInt(b, 10)).forEach(h => {
+            Array.from(heads).sort((a, b) => a - b).forEach(h => {
                 const option = document.createElement('option');
                 option.value = h;
                 option.textContent = h;
@@ -400,8 +362,7 @@
             tbody.innerHTML = '';
             let displayItems = [];
 
-            const dates = appData.dates.slice();
-            Object.keys(appData.data).forEach(date => {
+            for (const date of appData.dates) {
                 const dailyData = appData.data[date] || {};
                 const lines = Object.keys(dailyData).sort();
                 for (const line of lines) {
@@ -409,17 +370,15 @@
                     const machineNotes = lineData.machineNotes || '';
                     const offlineHeads = lineData.heads.filter(h => h.offline === 'Offline');
 
-                    // Collect offline heads
                     offlineHeads.forEach(head => {
                         displayItems.push({ date, line, head: head.head, issue: head.issue, repaired: head.repaired, notes: head.notes, machineNotes: '', type: 'head' });
                     });
 
-                    // Collect machine notes
                     if (machineNotes.trim() !== '') {
                         displayItems.push({ date, line, head: 'N/A', issue: 'N/A', repaired: 'N/A', notes: 'N/A', machineNotes, type: 'machineNote' });
                     }
                 }
-            });
+            }
 
             if (filtered) {
                 const filterDate = document.getElementById('filterDate').value;
@@ -436,30 +395,23 @@
                 });
             }
 
-            // Sort displayItems based on sortBy and sortOrder
+            // Sorting
             const sortBy = document.getElementById('sortBy').value;
-            const sortOrder = document.getElementById('sortOrder').value;
+            const sortOrder = document.getElementById('sortOrder').value === 'Ascending' ? 1 : -1;
 
             displayItems.sort((a, b) => {
-                let dateCmp = new Date(a.date) - new Date(b.date);
-                let lineCmp = a.line.localeCompare(b.line);
-                if (sortBy === 'date') {
-                    return sortOrder === 'desc' ? -dateCmp : dateCmp;
-                } else if (sortBy === 'line') {
-                    return sortOrder === 'desc' ? -lineCmp : lineCmp;
-                } else if (sortBy === 'both') {
-                    if (sortOrder === 'desc') {
-                        if (-dateCmp !== 0) return -dateCmp;
-                        return lineCmp;
-                    } else {
-                        if (dateCmp !== 0) return dateCmp;
-                        return lineCmp;
-                    }
+                if (sortBy === 'Date') {
+                    return sortOrder * (new Date(b.date) - new Date(a.date));
+                } else if (sortBy === 'Line') {
+                    return sortOrder * a.line.localeCompare(b.line);
+                } else {
+                    const dateCompare = new Date(b.date) - new Date(a.date);
+                    if (dateCompare !== 0) return sortOrder * dateCompare;
+                    return sortOrder * a.line.localeCompare(b.line);
                 }
-                return 0;
             });
 
-            filteredData = displayItems; // Store for PDF export
+            filteredData = displayItems;
 
             displayItems.forEach(item => {
                 const row = tbody.insertRow();
@@ -472,22 +424,22 @@
                 row.insertCell().textContent = item.machineNotes;
                 const actionsCell = row.insertCell();
                 if (item.type === 'head') {
+                    const editBtn = document.createElement('button');
+                    editBtn.textContent = 'Edit';
+                    editBtn.onclick = () => openEditModal(item.date, item.line, item.head, item);
+                    actionsCell.appendChild(editBtn);
                     const deleteBtn = document.createElement('button');
                     deleteBtn.textContent = 'Delete';
-                    deleteBtn.onclick = () => {
-                        if (confirm('Are you sure you want to delete this entry?')) {
-                            deleteEntry(item.date, item.line, parseInt(item.head));
-                        }
-                    };
+                    deleteBtn.onclick = () => deleteEntry(item.date, item.line, parseInt(item.head));
                     actionsCell.appendChild(deleteBtn);
                 } else if (item.type === 'machineNote') {
+                    const editBtn = document.createElement('button');
+                    editBtn.textContent = 'Edit';
+                    editBtn.onclick = () => openEditModal(item.date, item.line, 'N/A', item);
+                    actionsCell.appendChild(editBtn);
                     const deleteBtn = document.createElement('button');
                     deleteBtn.textContent = 'Clear Machine Notes';
-                    deleteBtn.onclick = () => {
-                        if (confirm('Are you sure you want to clear machine notes?')) {
-                            clearMachineNotes(item.date, item.line);
-                        }
-                    };
+                    deleteBtn.onclick = () => clearMachineNotes(item.date, item.line);
                     actionsCell.appendChild(deleteBtn);
                 }
             });
@@ -496,6 +448,14 @@
         function deleteEntry(date, line, headNum) {
             const lineData = appData.data[date][line];
             lineData.heads = lineData.heads.filter(h => h.head !== headNum);
+            if (lineData.heads.length === 0 && !lineData.machineNotes) {
+                delete appData.data[date][line];
+                if (Object.keys(appData.data[date]).length === 0) {
+                    delete appData.data[date];
+                    appData.dates = appData.dates.filter(d => d !== date);
+                    appData.currentDay = appData.dates[appData.dates.length - 1] || '';
+                }
+            }
             saveToLocalStorage();
             populateFilters();
             displayOfflineHeads(true);
@@ -504,9 +464,90 @@
         function clearMachineNotes(date, line) {
             const lineData = appData.data[date][line];
             lineData.machineNotes = '';
+            if (lineData.heads.length === 0) {
+                delete appData.data[date][line];
+                if (Object.keys(appData.data[date]).length === 0) {
+                    delete appData.data[date];
+                    appData.dates = appData.dates.filter(d => d !== date);
+                    appData.currentDay = appData.dates[appData.dates.length - 1] || '';
+                }
+            }
             saveToLocalStorage();
             populateFilters();
             displayOfflineHeads(true);
+        }
+
+        function openEditModal(date, line, head, item) {
+            const modal = document.getElementById('editModal');
+            const editForm = document.getElementById('editForm');
+            document.getElementById('editLine').value = item.line;
+            document.getElementById('editDate').value = item.date;
+            document.getElementById('editHead').value = item.head;
+            document.getElementById('editOffline').value = item.type === 'head' ? item.offline : 'N/A';
+            document.getElementById('editIssue').value = item.issue;
+            document.getElementById('editRepaired').value = item.repaired;
+            document.getElementById('editNotes').value = item.notes;
+            document.getElementById('editMachineNotes').value = item.machineNotes;
+
+            document.getElementById('editHead').disabled = item.type !== 'head';
+            document.getElementById('editOffline').disabled = item.type !== 'head';
+            document.getElementById('editIssue').disabled = item.type !== 'head';
+            document.getElementById('editRepaired').disabled = item.type !== 'head';
+            document.getElementById('editNotes').disabled = item.type !== 'head';
+
+            modal.style.display = 'block';
+
+            editForm.onsubmit = (e) => {
+                e.preventDefault();
+                const newLine = document.getElementById('editLine').value.trim();
+                const newDate = document.getElementById('editDate').value;
+                const newHead = parseInt(document.getElementById('editHead').value);
+                const newOffline = document.getElementById('editOffline').value;
+                const newIssue = document.getElementById('editIssue').value;
+                const newRepaired = document.getElementById('editRepaired').value;
+                const newNotes = document.getElementById('editNotes').value.trim();
+                const newMachineNotes = document.getElementById('editMachineNotes').value.trim();
+
+                if (item.type === 'head') {
+                    appData.data[date][line].heads = appData.data[date][line].heads.filter(h => h.head !== newHead);
+                    if (!appData.data[newDate]) {
+                        appData.data[newDate] = {};
+                        appData.dates.push(newDate);
+                        appData.dates.sort((a, b) => new Date(a) - new Date(b));
+                        appData.currentDay = appData.dates[appData.dates.length - 1];
+                    }
+                    if (!appData.data[newDate][newLine]) {
+                        appData.data[newDate][newLine] = { heads: [], machineNotes: '', running: true };
+                    }
+                    appData.data[newDate][newLine].heads.push({
+                        head: newHead,
+                        offline: newOffline,
+                        issue: newIssue,
+                        repaired: newRepaired,
+                        notes: newNotes
+                    });
+                    appData.data[newDate][newLine].heads.sort((a, b) => a.head - b.head);
+                }
+                appData.data[newDate][newLine].machineNotes = newMachineNotes;
+
+                if (appData.data[date][line].heads.length === 0 && !appData.data[date][line].machineNotes) {
+                    delete appData.data[date][line];
+                    if (Object.keys(appData.data[date]).length === 0) {
+                        delete appData.data[date];
+                        appData.dates = appData.dates.filter(d => d !== date);
+                        appData.currentDay = appData.dates[appData.dates.length - 1] || '';
+                    }
+                }
+
+                saveToLocalStorage();
+                populateFilters();
+                displayOfflineHeads(false); // Show all entries after edit
+                modal.style.display = 'none';
+            };
+
+            document.querySelector('.close').onclick = () => {
+                modal.style.display = 'none';
+            };
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -521,19 +562,14 @@
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     try {
-                        if (file.name.endsWith('.csv')) {
-                            processCsvUpload(ev.target.result);
-                        } else if (file.name.endsWith('.json')) {
-                            const jsonData = JSON.parse(ev.target.result);
-                            processJsonUpload(jsonData);
-                            saveToLocalStorage();
-                            populateFilters();
-                            displayOfflineHeads();
-                        } else {
-                            throw new Error('Unsupported file type');
-                        }
+                        const jsonData = JSON.parse(ev.target.result);
+                        processJsonUpload(jsonData);
+                        saveToLocalStorage();
+                        populateFilters();
+                        displayOfflineHeads();
+                        alert('Data successfully loaded from JSON file.');
                     } catch (error) {
-                        alert('Error processing file: ' + error.message);
+                        alert('Error processing JSON file: ' + error.message);
                     }
                 };
                 reader.readAsText(file);
@@ -594,13 +630,13 @@
                 notes
             });
             appData.data[date][line].heads.sort((a, b) => a.head - b.head);
-            if (machineNotes) {
-                appData.data[date][line].machineNotes += (appData.data[date][line].machineNotes ? '; ' : '') + machineNotes;
+            if (machineNotes.trim() !== '') {
+                appData.data[date][line].machineNotes = machineNotes;
             }
-            document.getElementById('addLogForm').reset();
+            console.log('Added entry:', { date, line, head: headNum, offline, issue, repaired, notes, machineNotes });
             saveToLocalStorage();
             populateFilters();
-            displayOfflineHeads();
+            displayOfflineHeads(false); // Show all entries after adding
         });
 
         document.getElementById('applyFilters').addEventListener('click', () => {

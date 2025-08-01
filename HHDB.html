@@ -38,12 +38,13 @@
         return gk_fileData[filename] || "";
         }
         </script><!DOCTYPE html>
+
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Machine Head Database</title>
-    <style>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Machine Head Database</title>
+<style>
         body { font-family: Arial, sans-serif; }
         table { border-collapse: collapse; width: 100%; margin-top: 20px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
@@ -53,139 +54,134 @@
         .modal-content { background-color: white; margin: 15% auto; padding: 20px; width: 80%; max-width: 500px; }
         .close { float: right; cursor: pointer; }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
-    <h1>Machine Head Database</h1>
-    
-    <section>
-        <h2>Import and Export</h2>
-        <input type="file" id="jsonUpload" accept=".json">
-        <button id="exportJSON">Export All Data as JSON</button>
-        <button id="clearData">Clear Database</button>
-        <button id="exportPDF">Export Filtered Data as PDF</button>
-    </section>
-    
-    <section>
-        <h2>Add to Log</h2>
-        <form id="addLogForm">
-            <label>Line: <input type="text" id="addLine" required></label><br>
-            <label>Date: <input type="date" id="addDate" required></label><br>
-            <label>Head: <input type="number" id="addHead" min="1" max="14" required></label><br>
-            <label>Offline Status: 
+<h1>Machine Head Database</h1>
+<section>
+<h2>Import and Export</h2>
+<input accept=".json" id="jsonUpload" type="file"/>
+<button id="exportJSON">Export All Data as JSON</button>
+<button id="clearData">Clear Database</button>
+<button id="exportPDF">Export Filtered Data as PDF</button>
+</section>
+<section>
+<h2>Add to Log</h2>
+<form id="addLogForm">
+<label>Line: <input id="addLine" required="" type="text"/></label><br/>
+<label>Date: <input id="addDate" required="" type="date"/></label><br/>
+<label>Head: <input id="addHead" max="14" min="1" required="" type="number"/></label><br/>
+<label>Offline Status: 
                 <select id="addOffline">
-                    <option>Active</option>
-                    <option>Offline</option>
-                </select>
-            </label><br>
-            <label>Issue: 
+
+<option>Offline</option>
+</select>
+</label><br/>
+<label>Issue: 
                 <select id="addIssue">
-                    <option>None</option>
-                    <option>Operator</option>
-                    <option>Chute</option>
-                    <option>Installed Wrong</option>
-                    <option>Detached Head</option>
-                    <option>Hopper Issues</option>
-                    <option>Stepper Motor Error</option>
-                    <option>Load Cell</option>
-                    <option>Other</option>
-                </select>
-            </label><br>
-            <label>Repaired: 
+<option>None</option>
+<option>Operator</option>
+<option>Chute</option>
+<option>Installed Wrong</option>
+<option>Detached Head</option>
+<option>Hopper Issues</option>
+<option>Stepper Motor Error</option>
+<option>Load Cell</option>
+<option>Other</option>
+</select>
+</label><br/>
+<label>Repaired: 
                 <select id="addRepaired">
-                    <option>Fixed</option>
-                    <option>Not Fixed</option>
-                    <option>N/A</option>
-                </select>
-            </label><br>
-            <label>Notes: <textarea id="addNotes"></textarea></label><br>
-            <label>Machine Notes: <textarea id="addMachineNotes"></textarea></label><br>
-            <button type="submit">Add Log Entry</button>
-        </form>
-    </section>
-    
-    <section>
-        <h2>Filter and View Heads and Machine Notes</h2>
-        <label>Filter by Date: <select id="filterDate"><option value="">All Dates</option></select></label>
-        <label>Filter by Line: <select id="filterLine"><option value="">All Lines</option></select></label>
-        <label>Filter by Head: <select id="filterHead"><option value="">All Heads</option></select></label>
-        <label>Filter by Issue: <select id="filterIssue"><option value="">All Issues</option></select></label>
-        <label>Sort by: 
+<option>Fixed</option>
+<option>Not Fixed</option>
+<option>N/A</option>
+</select>
+</label><br/>
+<label>Notes: <textarea id="addNotes"></textarea></label><br/>
+<label>Machine Notes: <textarea id="addMachineNotes"></textarea></label><br/>
+<button type="submit">Add Log Entry</button>
+</form>
+</section>
+<section>
+<h2>Filter and View Heads and Machine Notes</h2>
+<label>Filter by Date: <select id="filterDate"><option value="">All Dates</option></select></label>
+<label>Filter by Line: <select id="filterLine"><option value="">All Lines</option></select></label>
+<label>Filter by Head: <select id="filterHead"><option value="">All Heads</option></select></label>
+<label>Filter by Issue: <select id="filterIssue"><option value="">All Issues</option></select></label>
+<label>Sort by: 
             <select id="sortBy">
-                <option>Date</option>
-                <option>Line</option>
-                <option>Both (Date then Line)</option>
-            </select>
-        </label>
-        <label>Order: 
+<option>Date</option>
+<option>Line</option>
+<option>Both (Date then Line)</option>
+</select>
+</label>
+<label>Order: 
             <select id="sortOrder">
-                <option>Descending</option>
-                <option>Ascending</option>
-            </select>
-        </label>
-        <button id="applyFilters">Apply Filters and Sort</button>
-        <table>
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Line</th>
-                    <th>Head</th>
-                    <th>Offline Status</th>
-                    <th>Issue (Reasoning)</th>
-                    <th>Repaired</th>
-                    <th>Notes</th>
-                    <th>Machine Notes</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="historyBody"></tbody>
-        </table>
-    </section>
-
-    <!-- Edit Modal -->
-    <div id="editModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>Edit Entry</h2>
-            <form id="editForm">
-                <label>Line: <input type="text" id="editLine" required></label><br>
-                <label>Date: <input type="date" id="editDate" required></label><br>
-                <label>Head: <input type="number" id="editHead" min="1" max="14"></label><br>
-                <label>Offline Status: 
+<option>Descending</option>
+<option>Ascending</option>
+</select>
+</label>
+<button id="applyFilters">Apply Filters and Sort</button>
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th>Line</th>
+<th>Head</th>
+<th>Offline Status</th>
+<th>Issue (Reasoning)</th>
+<th>Repaired</th>
+<th>Notes</th>
+<th>Machine Notes</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody id="historyBody"></tbody>
+</table>
+</section>
+<!-- Edit Modal -->
+<div class="modal" id="editModal">
+<div class="modal-content">
+<span class="close">×</span>
+<h2>Edit Entry</h2>
+<form id="editForm">
+<label>Line: <input id="editLine" required="" type="text"/></label><br/>
+<label>Date: <input id="editDate" required="" type="date"/></label><br/>
+<label>Head: <input id="editHead" max="14" min="1" type="number"/></label><br/>
+<label>Offline Status: 
                     <select id="editOffline">
-                        <option>Active</option>
-                        <option>Offline</option>
-                    </select>
-                </label><br>
-                <label>Issue: 
-                    <select id="editIssue">
-                        <option>None</option>
-                        <option>Operator</option>
-                        <option>Chute</option>
-                        <option>Installed Wrong</option>
-                        <option>Detached Head</option>
-                        <option>Hopper Issues</option>
-                        <option>Stepper Motor Error</option>
-                        <option>Load Cell</option>
-                        <option>Other</option>
-                    </select>
-                </label><br>
-                <label>Repaired: 
-                    <select id="editRepaired">
-                        <option>Fixed</option>
-                        <option>Not Fixed</option>
-                        <option>N/A</option>
-                    </select>
-                </label><br>
-                <label>Notes: <textarea id="editNotes"></textarea></label><br>
-                <label>Machine Notes: <textarea id="editMachineNotes"></textarea></label><br>
-                <button type="submit">Save Changes</button>
-            </form>
-        </div>
-    </div>
 
-    <script>
+<option>Offline</option>
+</select>
+</label><br/>
+<label>Issue: 
+                    <select id="editIssue">
+<option>None</option>
+<option>Operator</option>
+<option>Chute</option>
+<option>Installed Wrong</option>
+<option>Detached Head</option>
+<option>Hopper Issues</option>
+<option>Stepper Motor Error</option>
+<option>Load Cell</option>
+<option>Other</option>
+</select>
+</label><br/>
+<label>Repaired: 
+                    <select id="editRepaired">
+<option>Fixed</option>
+<option>Not Fixed</option>
+<option>N/A</option>
+</select>
+</label><br/>
+<label>Notes: <textarea id="editNotes"></textarea></label><br/>
+<label>Machine Notes: <textarea id="editMachineNotes"></textarea></label><br/>
+<button type="submit">Save Changes</button>
+</form>
+</div>
+</div>
+<script>
         let appData = {
             "data": {},
             "dates": [],
@@ -371,7 +367,7 @@
                     const heads = lineData.heads || [];
 
                     heads.forEach(head => {
-                        displayItems.push({ date, line, head: head.head, offline: head.offline, issue: head.issue, repaired: head.repaired, notes: head.notes, machineNotes: '', type: 'head' });
+                        if (head.offline.toLowerCase() !== 'active') { displayItems.push({ date, line, head: head.head, offline: head.offline, issue: head.issue, repaired: head.repaired, notes: head.notes, machineNotes: '', type: 'head' }); }
                     });
 
                     if (machineNotes.trim() !== '') {
@@ -573,99 +569,5 @@
             doc.save('machine_data.pdf');
         });
     </script>
-
-<script>
-function openEditModal(date, line, head, item) {
-    document.getElementById('editLine').value = line;
-    document.getElementById('editDate').value = date;
-    document.getElementById('editHead').value = head !== 'N/A' ? head : '';
-    document.getElementById('editOffline').value = item.offline || '';
-    document.getElementById('editIssue').value = item.issue || '';
-    document.getElementById('editRepaired').value = item.repaired || '';
-    document.getElementById('editNotes').value = item.notes || '';
-    document.getElementById('editMachineNotes').value = item.machineNotes || '';
-
-    const modal = document.getElementById('editModal');
-    modal.style.display = 'block';
-
-    document.getElementById('editForm').onsubmit = function (e) {
-        e.preventDefault();
-
-        const newLine = document.getElementById('editLine').value;
-        const newDate = document.getElementById('editDate').value;
-        const newHead = document.getElementById('editHead').value;
-        const newOffline = document.getElementById('editOffline').value;
-        const newIssue = document.getElementById('editIssue').value;
-        const newRepaired = document.getElementById('editRepaired').value;
-        const newNotes = document.getElementById('editNotes').value;
-        const newMachineNotes = document.getElementById('editMachineNotes').value;
-
-        if (!appData.data[newDate]) appData.data[newDate] = {};
-        if (!appData.data[newDate][newLine]) appData.data[newDate][newLine] = { heads: [], machineNotes: '', running: true };
-
-        if (head === 'N/A') {
-            appData.data[newDate][newLine].machineNotes = newMachineNotes;
-        } else {
-            const headIndex = appData.data[date][line].heads.findIndex(h => h.head == head);
-            if (headIndex !== -1) {
-                appData.data[date][line].heads.splice(headIndex, 1); // Remove old
-                appData.data[newDate][newLine].heads.push({
-                    head: parseInt(newHead, 10),
-                    offline: newOffline,
-                    issue: newIssue,
-                    repaired: newRepaired,
-                    notes: newNotes
-                });
-                appData.data[newDate][newLine].heads.sort((a, b) => a.head - b.head);
-            }
-        }
-
-        saveToLocalStorage();
-        displayOfflineHeads(false);
-        modal.style.display = 'none';
-    };
-}
-
-function deleteEntry(date, line, head) {
-    if (!confirm(`Delete entry for Head ${head} on Line ${line} (${date})?`)) return;
-    const headList = appData.data[date][line].heads;
-    const index = headList.findIndex(h => h.head == head);
-    if (index !== -1) {
-        headList.splice(index, 1);
-        if (headList.length === 0 && !appData.data[date][line].machineNotes) {
-            delete appData.data[date][line];
-            if (Object.keys(appData.data[date]).length === 0) {
-                delete appData.data[date];
-                appData.dates = appData.dates.filter(d => d !== date);
-            }
-        }
-        saveToLocalStorage();
-        displayOfflineHeads(false);
-    }
-}
-
-function clearMachineNotes(date, line) {
-    if (!confirm(`Clear machine notes for Line ${line} on ${date}?`)) return;
-    if (appData.data[date] && appData.data[date][line]) {
-        appData.data[date][line].machineNotes = '';
-        saveToLocalStorage();
-        displayOfflineHeads(false);
-    }
-}
-
-// Close modal on 'X' click
-document.querySelector('.close').onclick = function () {
-    document.getElementById('editModal').style.display = 'none';
-};
-
-// Close modal on outside click
-window.onclick = function (event) {
-    const modal = document.getElementById('editModal');
-    if (event.target === modal) {
-        modal.style.display = 'none';
-    }
-};
-</script>
-
 </body>
 </html>

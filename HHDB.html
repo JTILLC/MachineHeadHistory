@@ -42,7 +42,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Machine Head Offline Database</title>
+    <title>Machine Head Database</title>
     <style>
         body { font-family: Arial, sans-serif; }
         table { border-collapse: collapse; width: 100%; margin-top: 20px; }
@@ -57,7 +57,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
-    <h1>Machine Head Offline Database</h1>
+    <h1>Machine Head Database</h1>
     
     <section>
         <h2>Import and Export</h2>
@@ -106,7 +106,7 @@
     </section>
     
     <section>
-        <h2>Filter and View Offline Heads and Machine Notes</h2>
+        <h2>Filter and View Heads and Machine Notes</h2>
         <label>Filter by Date: <select id="filterDate"><option value="">All Dates</option></select></label>
         <label>Filter by Line: <select id="filterLine"><option value="">All Lines</option></select></label>
         <label>Filter by Head: <select id="filterHead"><option value="">All Heads</option></select></label>
@@ -131,6 +131,7 @@
                     <th>Date</th>
                     <th>Line</th>
                     <th>Head</th>
+                    <th>Offline Status</th>
                     <th>Issue (Reasoning)</th>
                     <th>Repaired</th>
                     <th>Notes</th>
@@ -150,7 +151,7 @@
             <form id="editForm">
                 <label>Line: <input type="text" id="editLine" required></label><br>
                 <label>Date: <input type="date" id="editDate" required></label><br>
-                <label>Head: <input type="text" id="editHead" readonly></label><br>
+                <label>Head: <input type="number" id="editHead" min="1" max="14"></label><br>
                 <label>Offline Status: 
                     <select id="editOffline">
                         <option>Active</option>
@@ -312,10 +313,8 @@
                     lines.add(line);
                     const lineData = appData.data[date][line];
                     lineData.heads.forEach(head => {
-                        if (head.offline === 'Offline') {
-                            heads.add(head.head.toString());
-                            issues.add(head.issue);
-                        }
+                        heads.add(head.head.toString());
+                        issues.add(head.issue);
                     });
                 });
             });
@@ -362,16 +361,17 @@
             tbody.innerHTML = '';
             let displayItems = [];
 
-            for (const date of appData.dates) {
+            const dates = appData.dates.slice().sort((a, b) => new Date(b) - new Date(a)); // Latest to oldest
+            for (const date of dates) {
                 const dailyData = appData.data[date] || {};
                 const lines = Object.keys(dailyData).sort();
                 for (const line of lines) {
                     const lineData = dailyData[line];
                     const machineNotes = lineData.machineNotes || '';
-                    const offlineHeads = lineData.heads.filter(h => h.offline === 'Offline');
+                    const heads = lineData.heads || [];
 
-                    offlineHeads.forEach(head => {
-                        displayItems.push({ date, line, head: head.head, issue: head.issue, repaired: head.repaired, notes: head.notes, machineNotes: '', type: 'head' });
+                    heads.forEach(head => {
+                        displayItems.push({ date, line, head: head.head, offline: head.offline, issue: head.issue, repaired: head.repaired, notes: head.notes, machineNotes: '', type: 'head' });
                     });
 
                     if (machineNotes.trim() !== '') {
@@ -418,6 +418,7 @@
                 row.insertCell().textContent = item.date;
                 row.insertCell().textContent = item.line;
                 row.insertCell().textContent = item.head;
+                row.insertCell().textContent = item.offline;
                 row.insertCell().textContent = item.issue;
                 row.insertCell().textContent = item.repaired;
                 row.insertCell().textContent = item.notes;
@@ -430,7 +431,7 @@
                     actionsCell.appendChild(editBtn);
                     const deleteBtn = document.createElement('button');
                     deleteBtn.textContent = 'Delete';
-                    deleteBtn.onclick = () => deleteEntry(item.date, item.line, parseInt(item.head));
+                    deleteBtn.onclick = () => deleteEntry(item.date, item.line, item.head);
                     actionsCell.appendChild(deleteBtn);
                 } else if (item.type === 'machineNote') {
                     const editBtn = document.createElement('button');
@@ -445,114 +446,9 @@
             });
         }
 
-        function deleteEntry(date, line, headNum) {
-            const lineData = appData.data[date][line];
-            lineData.heads = lineData.heads.filter(h => h.head !== headNum);
-            if (lineData.heads.length === 0 && !lineData.machineNotes) {
-                delete appData.data[date][line];
-                if (Object.keys(appData.data[date]).length === 0) {
-                    delete appData.data[date];
-                    appData.dates = appData.dates.filter(d => d !== date);
-                    appData.currentDay = appData.dates[appData.dates.length - 1] || '';
-                }
-            }
-            saveToLocalStorage();
-            populateFilters();
-            displayOfflineHeads(true);
-        }
-
-        function clearMachineNotes(date, line) {
-            const lineData = appData.data[date][line];
-            lineData.machineNotes = '';
-            if (lineData.heads.length === 0) {
-                delete appData.data[date][line];
-                if (Object.keys(appData.data[date]).length === 0) {
-                    delete appData.data[date];
-                    appData.dates = appData.dates.filter(d => d !== date);
-                    appData.currentDay = appData.dates[appData.dates.length - 1] || '';
-                }
-            }
-            saveToLocalStorage();
-            populateFilters();
-            displayOfflineHeads(true);
-        }
-
-        function openEditModal(date, line, head, item) {
-            const modal = document.getElementById('editModal');
-            const editForm = document.getElementById('editForm');
-            document.getElementById('editLine').value = item.line;
-            document.getElementById('editDate').value = item.date;
-            document.getElementById('editHead').value = item.head;
-            document.getElementById('editOffline').value = item.type === 'head' ? item.offline : 'N/A';
-            document.getElementById('editIssue').value = item.issue;
-            document.getElementById('editRepaired').value = item.repaired;
-            document.getElementById('editNotes').value = item.notes;
-            document.getElementById('editMachineNotes').value = item.machineNotes;
-
-            document.getElementById('editHead').disabled = item.type !== 'head';
-            document.getElementById('editOffline').disabled = item.type !== 'head';
-            document.getElementById('editIssue').disabled = item.type !== 'head';
-            document.getElementById('editRepaired').disabled = item.type !== 'head';
-            document.getElementById('editNotes').disabled = item.type !== 'head';
-
-            modal.style.display = 'block';
-
-            editForm.onsubmit = (e) => {
-                e.preventDefault();
-                const newLine = document.getElementById('editLine').value.trim();
-                const newDate = document.getElementById('editDate').value;
-                const newHead = parseInt(document.getElementById('editHead').value);
-                const newOffline = document.getElementById('editOffline').value;
-                const newIssue = document.getElementById('editIssue').value;
-                const newRepaired = document.getElementById('editRepaired').value;
-                const newNotes = document.getElementById('editNotes').value.trim();
-                const newMachineNotes = document.getElementById('editMachineNotes').value.trim();
-
-                if (item.type === 'head') {
-                    appData.data[date][line].heads = appData.data[date][line].heads.filter(h => h.head !== newHead);
-                    if (!appData.data[newDate]) {
-                        appData.data[newDate] = {};
-                        appData.dates.push(newDate);
-                        appData.dates.sort((a, b) => new Date(a) - new Date(b));
-                        appData.currentDay = appData.dates[appData.dates.length - 1];
-                    }
-                    if (!appData.data[newDate][newLine]) {
-                        appData.data[newDate][newLine] = { heads: [], machineNotes: '', running: true };
-                    }
-                    appData.data[newDate][newLine].heads.push({
-                        head: newHead,
-                        offline: newOffline,
-                        issue: newIssue,
-                        repaired: newRepaired,
-                        notes: newNotes
-                    });
-                    appData.data[newDate][newLine].heads.sort((a, b) => a.head - b.head);
-                }
-                appData.data[newDate][newLine].machineNotes = newMachineNotes;
-
-                if (appData.data[date][line].heads.length === 0 && !appData.data[date][line].machineNotes) {
-                    delete appData.data[date][line];
-                    if (Object.keys(appData.data[date]).length === 0) {
-                        delete appData.data[date];
-                        appData.dates = appData.dates.filter(d => d !== date);
-                        appData.currentDay = appData.dates[appData.dates.length - 1] || '';
-                    }
-                }
-
-                saveToLocalStorage();
-                populateFilters();
-                displayOfflineHeads(false); // Show all entries after edit
-                modal.style.display = 'none';
-            };
-
-            document.querySelector('.close').onclick = () => {
-                modal.style.display = 'none';
-            };
-        }
-
         document.addEventListener('DOMContentLoaded', () => {
             loadFromLocalStorage();
-            displayOfflineHeads();
+            displayOfflineHeads(false);
             populateFilters();
         });
 
@@ -566,7 +462,7 @@
                         processJsonUpload(jsonData);
                         saveToLocalStorage();
                         populateFilters();
-                        displayOfflineHeads();
+                        displayOfflineHeads(false);
                         alert('Data successfully loaded from JSON file.');
                     } catch (error) {
                         alert('Error processing JSON file: ' + error.message);
@@ -593,7 +489,7 @@
                 appData = { "data": {}, "dates": [], "currentDay": "" };
                 saveToLocalStorage();
                 populateFilters();
-                displayOfflineHeads();
+                displayOfflineHeads(false);
             }
         });
 
@@ -633,10 +529,9 @@
             if (machineNotes.trim() !== '') {
                 appData.data[date][line].machineNotes = machineNotes;
             }
-            console.log('Added entry:', { date, line, head: headNum, offline, issue, repaired, notes, machineNotes });
             saveToLocalStorage();
             populateFilters();
-            displayOfflineHeads(false); // Show all entries after adding
+            displayOfflineHeads(false); // Show all to ensure new entry is visible
         });
 
         document.getElementById('applyFilters').addEventListener('click', () => {
@@ -646,14 +541,15 @@
         document.getElementById('exportPDF').addEventListener('click', () => {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
-            doc.text('Machine Head Offline Database', 14, 10);
+            doc.text('Machine Head Database', 14, 10);
             doc.autoTable({
                 startY: 20,
-                head: [['Date', 'Line', 'Head', 'Issue (Reasoning)', 'Repaired', 'Notes', 'Machine Notes']],
+                head: [['Date', 'Line', 'Head', 'Offline Status', 'Issue (Reasoning)', 'Repaired', 'Notes', 'Machine Notes']],
                 body: filteredData.map(item => [
                     item.date,
                     item.line,
                     item.head,
+                    item.offline,
                     item.issue,
                     item.repaired,
                     item.notes,
@@ -661,13 +557,14 @@
                 ]),
                 styles: { fontSize: 8, cellPadding: 2 },
                 columnStyles: {
-                    0: { cellWidth: 25 }, // Date
-                    1: { cellWidth: 20 }, // Line
-                    2: { cellWidth: 15 }, // Head
-                    3: { cellWidth: 25 }, // Issue
-                    4: { cellWidth: 20 }, // Repaired
-                    5: { cellWidth: 30 }, // Notes
-                    6: { cellWidth: 55 }  // Machine Notes
+                    0: { cellWidth: 20 }, // Date
+                    1: { cellWidth: 15 }, // Line
+                    2: { cellWidth: 10 }, // Head
+                    3: { cellWidth: 20 }, // Offline Status
+                    4: { cellWidth: 25 }, // Issue
+                    5: { cellWidth: 20 }, // Repaired
+                    6: { cellWidth: 30 }, // Notes
+                    7: { cellWidth: 55 }  // Machine Notes
                 },
                 didParseCell: (data) => {
                     data.cell.styles.overflow = 'linebreak';
@@ -676,5 +573,99 @@
             doc.save('machine_data.pdf');
         });
     </script>
+
+<script>
+function openEditModal(date, line, head, item) {
+    document.getElementById('editLine').value = line;
+    document.getElementById('editDate').value = date;
+    document.getElementById('editHead').value = head !== 'N/A' ? head : '';
+    document.getElementById('editOffline').value = item.offline || '';
+    document.getElementById('editIssue').value = item.issue || '';
+    document.getElementById('editRepaired').value = item.repaired || '';
+    document.getElementById('editNotes').value = item.notes || '';
+    document.getElementById('editMachineNotes').value = item.machineNotes || '';
+
+    const modal = document.getElementById('editModal');
+    modal.style.display = 'block';
+
+    document.getElementById('editForm').onsubmit = function (e) {
+        e.preventDefault();
+
+        const newLine = document.getElementById('editLine').value;
+        const newDate = document.getElementById('editDate').value;
+        const newHead = document.getElementById('editHead').value;
+        const newOffline = document.getElementById('editOffline').value;
+        const newIssue = document.getElementById('editIssue').value;
+        const newRepaired = document.getElementById('editRepaired').value;
+        const newNotes = document.getElementById('editNotes').value;
+        const newMachineNotes = document.getElementById('editMachineNotes').value;
+
+        if (!appData.data[newDate]) appData.data[newDate] = {};
+        if (!appData.data[newDate][newLine]) appData.data[newDate][newLine] = { heads: [], machineNotes: '', running: true };
+
+        if (head === 'N/A') {
+            appData.data[newDate][newLine].machineNotes = newMachineNotes;
+        } else {
+            const headIndex = appData.data[date][line].heads.findIndex(h => h.head == head);
+            if (headIndex !== -1) {
+                appData.data[date][line].heads.splice(headIndex, 1); // Remove old
+                appData.data[newDate][newLine].heads.push({
+                    head: parseInt(newHead, 10),
+                    offline: newOffline,
+                    issue: newIssue,
+                    repaired: newRepaired,
+                    notes: newNotes
+                });
+                appData.data[newDate][newLine].heads.sort((a, b) => a.head - b.head);
+            }
+        }
+
+        saveToLocalStorage();
+        displayOfflineHeads(false);
+        modal.style.display = 'none';
+    };
+}
+
+function deleteEntry(date, line, head) {
+    if (!confirm(`Delete entry for Head ${head} on Line ${line} (${date})?`)) return;
+    const headList = appData.data[date][line].heads;
+    const index = headList.findIndex(h => h.head == head);
+    if (index !== -1) {
+        headList.splice(index, 1);
+        if (headList.length === 0 && !appData.data[date][line].machineNotes) {
+            delete appData.data[date][line];
+            if (Object.keys(appData.data[date]).length === 0) {
+                delete appData.data[date];
+                appData.dates = appData.dates.filter(d => d !== date);
+            }
+        }
+        saveToLocalStorage();
+        displayOfflineHeads(false);
+    }
+}
+
+function clearMachineNotes(date, line) {
+    if (!confirm(`Clear machine notes for Line ${line} on ${date}?`)) return;
+    if (appData.data[date] && appData.data[date][line]) {
+        appData.data[date][line].machineNotes = '';
+        saveToLocalStorage();
+        displayOfflineHeads(false);
+    }
+}
+
+// Close modal on 'X' click
+document.querySelector('.close').onclick = function () {
+    document.getElementById('editModal').style.display = 'none';
+};
+
+// Close modal on outside click
+window.onclick = function (event) {
+    const modal = document.getElementById('editModal');
+    if (event.target === modal) {
+        modal.style.display = 'none';
+    }
+};
+</script>
+
 </body>
 </html>

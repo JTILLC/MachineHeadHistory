@@ -207,6 +207,16 @@
             }
         ];
 
+        // Store current filter settings
+        let currentFilters = {
+            filterDate: 'All Dates',
+            filterLine: 'All Lines',
+            filterHead: 'All Heads',
+            filterIssue: 'All Issues',
+            sortBy: 'Date',
+            sortOrder: 'Descending'
+        };
+
         // Initialize page
         document.addEventListener('DOMContentLoaded', () => {
             // Load logs and populate filters
@@ -241,8 +251,8 @@
             }
         }
 
-        // Render table
-        function renderTable(filteredLogs = logs) {
+        // Render table with current filters
+        function renderTable(filteredLogs = applyFiltersToLogs(logs)) {
             const tbody = document.getElementById('logTableBody');
             tbody.innerHTML = '';
             filteredLogs.forEach(log => {
@@ -275,11 +285,58 @@
             const lineSelect = document.getElementById('filterLine');
             const headSelect = document.getElementById('filterHead');
             const issueSelect = document.getElementById('filterIssue');
+            const sortBySelect = document.getElementById('sortBy');
+            const sortOrderSelect = document.getElementById('sortOrder');
 
             dateSelect.innerHTML = '<option value="All Dates">All Dates</option>' + dates.map(d => `<option value="${d}">${d}</option>`).join('');
             lineSelect.innerHTML = '<option value="All Lines">All Lines</option>' + lines.map(l => `<option value="${l}">${l}</option>`).join('');
             headSelect.innerHTML = '<option value="All Heads">All Heads</option>' + heads.map(h => `<option value="${h}">${h}</option>`).join('');
             issueSelect.innerHTML = '<option value="All Issues">All Issues</option>' + issues.map(i => `<option value="${i}">${i}</option>`).join('');
+
+            // Restore current filter settings
+            dateSelect.value = currentFilters.filterDate;
+            lineSelect.value = currentFilters.filterLine;
+            headSelect.value = currentFilters.filterHead;
+            issueSelect.value = currentFilters.filterIssue;
+            sortBySelect.value = currentFilters.sortBy;
+            sortOrderSelect.value = currentFilters.sortOrder;
+        }
+
+        // Apply filters to logs
+        function applyFiltersToLogs(logsToFilter) {
+            let filteredLogs = logsToFilter;
+
+            // Apply filters
+            if (currentFilters.filterDate !== 'All Dates') {
+                filteredLogs = filteredLogs.filter(log => log.date === currentFilters.filterDate);
+            }
+            if (currentFilters.filterLine !== 'All Lines') {
+                filteredLogs = filteredLogs.filter(log => log.line === currentFilters.filterLine);
+            }
+            if (currentFilters.filterHead !== 'All Heads') {
+                filteredLogs = filteredLogs.filter(log => log.head === currentFilters.filterHead);
+            }
+            if (currentFilters.filterIssue !== 'All Issues') {
+                filteredLogs = filteredLogs.filter(log => log.issue === currentFilters.filterIssue);
+            }
+
+            // Apply sorting
+            filteredLogs.sort((a, b) => {
+                const order = currentFilters.sortOrder === 'Ascending' ? 1 : -1;
+                if (currentFilters.sortBy === 'Date') {
+                    return (a.date > b.date ? 1 : -1) * order;
+                } else if (currentFilters.sortBy === 'Line') {
+                    return (a.line > b.line ? 1 : -1) * order;
+                } else {
+                    // Both (Date then Line)
+                    if (a.date !== b.date) {
+                        return (a.date > b.date ? 1 : -1) * order;
+                    }
+                    return (a.line > b.line ? 1 : -1) * order;
+                }
+            });
+
+            return filteredLogs;
         }
 
         // Map issue abbreviations to full names
@@ -489,46 +546,15 @@
             const errorMessage = document.getElementById('errorMessage');
             errorMessage.textContent = '';
             try {
-                const filterDate = document.getElementById('filterDate').value;
-                const filterLine = document.getElementById('filterLine').value;
-                const filterHead = document.getElementById('filterHead').value;
-                const filterIssue = document.getElementById('filterIssue').value;
-                const sortBy = document.getElementById('sortBy').value;
-                const sortOrder = document.getElementById('sortOrder').value;
+                // Update current filters
+                currentFilters.filterDate = document.getElementById('filterDate').value;
+                currentFilters.filterLine = document.getElementById('filterLine').value;
+                currentFilters.filterHead = document.getElementById('filterHead').value;
+                currentFilters.filterIssue = document.getElementById('filterIssue').value;
+                currentFilters.sortBy = document.getElementById('sortBy').value;
+                currentFilters.sortOrder = document.getElementById('sortOrder').value;
 
-                let filteredLogs = logs;
-
-                // Apply filters
-                if (filterDate !== 'All Dates') {
-                    filteredLogs = filteredLogs.filter(log => log.date === filterDate);
-                }
-                if (filterLine !== 'All Lines') {
-                    filteredLogs = filteredLogs.filter(log => log.line === filterLine);
-                }
-                if (filterHead !== 'All Heads') {
-                    filteredLogs = filteredLogs.filter(log => log.head === filterHead);
-                }
-                if (filterIssue !== 'All Issues') {
-                    filteredLogs = filteredLogs.filter(log => log.issue === filterIssue);
-                }
-
-                // Apply sorting
-                filteredLogs.sort((a, b) => {
-                    const order = sortOrder === 'Ascending' ? 1 : -1;
-                    if (sortBy === 'Date') {
-                        return (a.date > b.date ? 1 : -1) * order;
-                    } else if (sortBy === 'Line') {
-                        return (a.line > b.line ? 1 : -1) * order;
-                    } else {
-                        // Both (Date then Line)
-                        if (a.date !== b.date) {
-                            return (a.date > b.date ? 1 : -1) * order;
-                        }
-                        return (a.line > b.line ? 1 : -1) * order;
-                    }
-                });
-
-                renderTable(filteredLogs);
+                renderTable();
             } catch (error) {
                 errorMessage.textContent = `Error applying filters: ${error.message}.`;
                 console.error('Error applying filters:', error);
@@ -558,6 +584,15 @@
                 try {
                     logs = [];
                     localStorage.removeItem('machineLogs');
+                    // Reset filters to default
+                    currentFilters = {
+                        filterDate: 'All Dates',
+                        filterLine: 'All Lines',
+                        filterHead: 'All Heads',
+                        filterIssue: 'All Issues',
+                        sortBy: 'Date',
+                        sortOrder: 'Descending'
+                    };
                     renderTable();
                     populateFilters();
                 } catch (error) {

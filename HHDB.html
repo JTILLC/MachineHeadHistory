@@ -103,11 +103,8 @@
         <h2>Filter and View Heads and Machine Notes</h2>
         <div id="errorMessage" class="error-message"></div>
         <form id="filterForm">
-            <label>Filter by Date:
-                <select id="filterDate" name="filterDate">
-                    <option value="All Dates">All Dates</option>
-                </select>
-            </label>
+            <label>From Date: <input type="date" id="fromDate" name="fromDate"></label>
+            <label>To Date: <input type="date" id="toDate" name="toDate"></label><br>
             <label>Filter by Line:
                 <select id="filterLine" name="filterLine">
                     <option value="All Lines">All Lines</option>
@@ -209,7 +206,8 @@
 
         // Store current filter settings
         let currentFilters = {
-            filterDate: 'All Dates',
+            fromDate: '',
+            toDate: '',
             filterLine: 'All Lines',
             filterHead: 'All Heads',
             filterIssue: 'All Issues',
@@ -276,25 +274,25 @@
 
         // Populate filter dropdowns
         function populateFilters() {
-            const dates = [...new Set(logs.map(log => log.date))].sort();
             const lines = [...new Set(logs.map(log => log.line))].sort();
             const heads = [...new Set(logs.map(log => log.head))].sort();
             const issues = [...new Set(logs.map(log => log.issue))].sort();
 
-            const dateSelect = document.getElementById('filterDate');
             const lineSelect = document.getElementById('filterLine');
             const headSelect = document.getElementById('filterHead');
             const issueSelect = document.getElementById('filterIssue');
             const sortBySelect = document.getElementById('sortBy');
             const sortOrderSelect = document.getElementById('sortOrder');
+            const fromDateInput = document.getElementById('fromDate');
+            const toDateInput = document.getElementById('toDate');
 
-            dateSelect.innerHTML = '<option value="All Dates">All Dates</option>' + dates.map(d => `<option value="${d}">${d}</option>`).join('');
             lineSelect.innerHTML = '<option value="All Lines">All Lines</option>' + lines.map(l => `<option value="${l}">${l}</option>`).join('');
             headSelect.innerHTML = '<option value="All Heads">All Heads</option>' + heads.map(h => `<option value="${h}">${h}</option>`).join('');
             issueSelect.innerHTML = '<option value="All Issues">All Issues</option>' + issues.map(i => `<option value="${i}">${i}</option>`).join('');
 
             // Restore current filter settings
-            dateSelect.value = currentFilters.filterDate;
+            fromDateInput.value = currentFilters.fromDate;
+            toDateInput.value = currentFilters.toDate;
             lineSelect.value = currentFilters.filterLine;
             headSelect.value = currentFilters.filterHead;
             issueSelect.value = currentFilters.filterIssue;
@@ -306,10 +304,16 @@
         function applyFiltersToLogs(logsToFilter) {
             let filteredLogs = logsToFilter;
 
-            // Apply filters
-            if (currentFilters.filterDate !== 'All Dates') {
-                filteredLogs = filteredLogs.filter(log => log.date === currentFilters.filterDate);
+            // Apply date range filter
+            if (currentFilters.fromDate && currentFilters.toDate) {
+                filteredLogs = filteredLogs.filter(log => log.date >= currentFilters.fromDate && log.date <= currentFilters.toDate);
+            } else if (currentFilters.fromDate) {
+                filteredLogs = filteredLogs.filter(log => log.date >= currentFilters.fromDate);
+            } else if (currentFilters.toDate) {
+                filteredLogs = filteredLogs.filter(log => log.date <= currentFilters.toDate);
             }
+
+            // Apply other filters
             if (currentFilters.filterLine !== 'All Lines') {
                 filteredLogs = filteredLogs.filter(log => log.line === currentFilters.filterLine);
             }
@@ -547,7 +551,8 @@
             errorMessage.textContent = '';
             try {
                 // Update current filters
-                currentFilters.filterDate = document.getElementById('filterDate').value;
+                currentFilters.fromDate = document.getElementById('fromDate').value;
+                currentFilters.toDate = document.getElementById('toDate').value;
                 currentFilters.filterLine = document.getElementById('filterLine').value;
                 currentFilters.filterHead = document.getElementById('filterHead').value;
                 currentFilters.filterIssue = document.getElementById('filterIssue').value;
@@ -586,7 +591,8 @@
                     localStorage.removeItem('machineLogs');
                     // Reset filters to default
                     currentFilters = {
-                        filterDate: 'All Dates',
+                        fromDate: '',
+                        toDate: '',
                         filterLine: 'All Lines',
                         filterHead: 'All Heads',
                         filterIssue: 'All Issues',

@@ -275,7 +275,7 @@
         // Populate filter dropdowns
         function populateFilters() {
             const lines = [...new Set(logs.map(log => log.line))].sort();
-            const heads = [...new Set(logs.map(log => log.head))].sort();
+            const heads = [...new Set(logs.map(log => log.head).filter(h => h !== ''))].sort();
             const issues = [...new Set(logs.map(log => log.issue))].sort();
 
             const lineSelect = document.getElementById('filterLine');
@@ -404,14 +404,17 @@
                             });
                         });
                     } else if (Array.isArray(importedData)) {
-                        // Handle flat array format, include only Offline heads
+                        // Handle flat array format, include only Offline heads or if no status
                         newLogs = importedData
-                            .filter(log => log.offlineStatus === 'Offline' || log.offline === 'Offline')
+                            .filter(log => {
+                                const status = log.offlineStatus || log.offline;
+                                return !status || status === 'Offline';
+                            })
                             .map((log, index) => ({
                                 id: log.id || `${Date.now()}-${index}`,
                                 date: log.date,
                                 line: log.line,
-                                head: log.head.toString(),
+                                head: log.head ? log.head.toString() : '',
                                 issue: issueMap[log.issue] || log.issue || 'None',
                                 repaired: repairedMap[log.repaired] || log.repaired || 'N/A',
                                 notes: log.notes || '',
@@ -421,10 +424,10 @@
                         throw new Error('Invalid JSON format: Must be an array or have a "data" object.');
                     }
 
-                    // Validate required fields
+                    // Validate required fields (allow empty head)
                     newLogs.forEach((log, index) => {
-                        if (!log.id || !log.date || !log.line || !log.head) {
-                            throw new Error(`Invalid log entry at index ${index}: Missing required fields (id, date, line, head).`);
+                        if (!log.id || !log.date || !log.line) {
+                            throw new Error(`Invalid log entry at index ${index}: Missing required fields (id, date, line).`);
                         }
                     });
 

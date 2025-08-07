@@ -1,43 +1,4 @@
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -258,7 +219,7 @@
                 row.innerHTML = `
                     <td>${log.date || ''}</td>
                     <td>${log.line || ''}</td>
-                    <td>${log.head || ''}</td>
+                    <td>${log.head || 'N/A'}</td>
                     <td>${log.issue || ''}</td>
                     <td>${log.repaired || ''}</td>
                     <td>${log.notes || ''}</td>
@@ -275,7 +236,7 @@
         // Populate filter dropdowns
         function populateFilters() {
             const lines = [...new Set(logs.map(log => log.line))].sort();
-            const heads = [...new Set(logs.map(log => log.head).filter(h => h !== ''))].sort();
+            const heads = [...new Set(logs.map(log => log.head).filter(h => h && h !== 'N/A'))].sort();
             const issues = [...new Set(logs.map(log => log.issue))].sort();
 
             const lineSelect = document.getElementById('filterLine');
@@ -394,7 +355,7 @@
                                             date,
                                             line,
                                             head: head.head.toString(),
-                                            issue: issueMap[head.issue] || 'Other',
+                                            issue: issueMap[head.issue] || head.issue || 'Other',
                                             repaired: repairedMap[head.repaired] || head.repaired || 'N/A',
                                             notes: head.notes || '',
                                             machineNotes
@@ -410,21 +371,38 @@
                                 const status = log.offlineStatus || log.offline;
                                 return !status || status === 'Offline';
                             })
-                            .map((log, index) => ({
-                                id: log.id || `${Date.now()}-${index}`,
-                                date: log.date,
-                                line: log.line,
-                                head: log.head ? log.head.toString() : '',
-                                issue: issueMap[log.issue] || log.issue || 'None',
-                                repaired: repairedMap[log.repaired] || log.repaired || 'N/A',
-                                notes: log.notes || '',
-                                machineNotes: log.machineNotes || ''
-                            }));
+                            .map((log, index) => {
+                                let issue = issueMap[log.issue] || log.issue || 'None';
+                                let notes = log.notes || '';
+                                let machineNotes = log.machineNotes || '';
+                                let head = log.head ? log.head.toString() : 'N/A';
+
+                                // Special handling for 'Other' or 'None' issues
+                                if (issue === 'Other' || issue === 'None') {
+                                    if (notes) {
+                                        issue = notes;
+                                        notes = '';
+                                    } else if (machineNotes) {
+                                        issue = machineNotes;
+                                    }
+                                }
+
+                                return {
+                                    id: log.id || `${Date.now()}-${index}`,
+                                    date: log.date,
+                                    line: log.line,
+                                    head,
+                                    issue,
+                                    repaired: repairedMap[log.repaired] || log.repaired || 'N/A',
+                                    notes,
+                                    machineNotes
+                                };
+                            });
                     } else {
                         throw new Error('Invalid JSON format: Must be an array or have a "data" object.');
                     }
 
-                    // Validate required fields (allow empty head)
+                    // Validate required fields
                     newLogs.forEach((log, index) => {
                         if (!log.id || !log.date || !log.line) {
                             throw new Error(`Invalid log entry at index ${index}: Missing required fields (id, date, line).`);

@@ -176,6 +176,9 @@
             sortOrder: 'Descending'
         };
 
+        // Valid issues
+        const validIssues = ['None', 'Operator', 'Chute', 'Installed Wrong', 'Detached Head', 'Hopper Issues', 'Stepper Motor Error', 'Load Cell', 'Other'];
+
         // Initialize page
         document.addEventListener('DOMContentLoaded', () => {
             // Load logs and populate filters
@@ -218,7 +221,7 @@
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${log.date || ''}</td>
-                    <td>${log.line || ''}</td>
+                    <td>${log.line || 'N/A'}</td>
                     <td>${log.head || 'N/A'}</td>
                     <td>${log.issue || ''}</td>
                     <td>${log.repaired || ''}</td>
@@ -235,8 +238,8 @@
 
         // Populate filter dropdowns
         function populateFilters() {
-            const lines = [...new Set(logs.map(log => log.line))].sort();
-            const heads = [...new Set(logs.map(log => log.head).filter(h => h && h !== 'N/A'))].sort();
+            const lines = [...new Set(logs.map(log => log.line).filter(l => l))].sort();
+            const heads = [...new Set(logs.map(log => log.head).filter(h => h))].sort();
             const issues = [...new Set(logs.map(log => log.issue))].sort();
 
             const lineSelect = document.getElementById('filterLine');
@@ -350,16 +353,41 @@
                                 const machineNotes = lineData.machineNotes || '';
                                 lineData.heads.forEach(head => {
                                     if (head.offline === 'Offline') {
-                                        newLogs.push({
-                                            id: `${date}-${line}-${head.head}-${Date.now()}`, // Unique ID
-                                            date,
-                                            line,
-                                            head: head.head.toString(),
-                                            issue: issueMap[head.issue] || head.issue || 'Other',
-                                            repaired: repairedMap[head.repaired] || head.repaired || 'N/A',
-                                            notes: head.notes || '',
-                                            machineNotes
-                                        });
+                                        let issue = issueMap[head.issue] || head.issue || 'Other';
+                                        if (!validIssues.includes(issue)) {
+                                            const originalIssue = head.issue || '';
+                                            issue = 'Other';
+                                            let notes = head.notes || '';
+                                            let machineNotesLocal = machineNotes;
+                                            if (!notes) {
+                                                notes = originalIssue;
+                                            } else if (!machineNotesLocal) {
+                                                machineNotesLocal = originalIssue;
+                                            } else {
+                                                notes += ' ' + originalIssue;
+                                            }
+                                            newLogs.push({
+                                                id: `${date}-${line}-${head.head}-${Date.now()}`, // Unique ID
+                                                date,
+                                                line,
+                                                head: head.head.toString(),
+                                                issue,
+                                                repaired: repairedMap[head.repaired] || head.repaired || 'N/A',
+                                                notes,
+                                                machineNotes: machineNotesLocal
+                                            });
+                                        } else {
+                                            newLogs.push({
+                                                id: `${date}-${line}-${head.head}-${Date.now()}`, // Unique ID
+                                                date,
+                                                line,
+                                                head: head.head.toString(),
+                                                issue,
+                                                repaired: repairedMap[head.repaired] || head.repaired || 'N/A',
+                                                notes: head.notes || '',
+                                                machineNotes
+                                            });
+                                        }
                                     }
                                 });
                             });
@@ -375,25 +403,30 @@
                                 let issue = issueMap[log.issue] || log.issue || 'None';
                                 let notes = log.notes || '';
                                 let machineNotes = log.machineNotes || '';
-                                let head = log.head ? log.head.toString() : 'N/A';
+                                let head = log.head ? log.head.toString() : '';
+                                let line = log.line || '';
+                                let repaired = repairedMap[log.repaired] || log.repaired || 'N/A';
 
-                                // Special handling for 'Other' or 'None' issues
-                                if (issue === 'Other' || issue === 'None') {
-                                    if (notes) {
-                                        issue = notes;
-                                        notes = '';
-                                    } else if (machineNotes) {
-                                        issue = machineNotes;
+                                // If issue not in validIssues, set to 'Other' and move original to notes or machineNotes
+                                if (!validIssues.includes(issue)) {
+                                    const originalIssue = log.issue || '';
+                                    issue = 'Other';
+                                    if (!notes) {
+                                        notes = originalIssue;
+                                    } else if (!machineNotes) {
+                                        machineNotes = originalIssue;
+                                    } else {
+                                        notes += ' ' + originalIssue;
                                     }
                                 }
 
                                 return {
                                     id: log.id || `${Date.now()}-${index}`,
                                     date: log.date,
-                                    line: log.line,
+                                    line,
                                     head,
                                     issue,
-                                    repaired: repairedMap[log.repaired] || log.repaired || 'N/A',
+                                    repaired,
                                     notes,
                                     machineNotes
                                 };
@@ -402,10 +435,10 @@
                         throw new Error('Invalid JSON format: Must be an array or have a "data" object.');
                     }
 
-                    // Validate required fields
+                    // Validate required fields (allow empty line and head)
                     newLogs.forEach((log, index) => {
-                        if (!log.id || !log.date || !log.line) {
-                            throw new Error(`Invalid log entry at index ${index}: Missing required fields (id, date, line).`);
+                        if (!log.id || !log.date) {
+                            throw new Error(`Invalid log entry at index ${index}: Missing required fields (id, date).`);
                         }
                     });
 
